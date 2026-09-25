@@ -260,7 +260,8 @@ export const App: React.FC = () => {
       setButtonsState(currentButtons);
 
       // 2. Execute Rotation (Turning)
-      const rotSpeed = 3.2 * dt;
+      // Agent uses slower turn speed so it doesn't spin past demons
+      const rotSpeed = (isAutoPlay ? 1.8 : 3.2) * dt;
       if (currentButtons.turnLeft) {
         player.angleRad -= rotSpeed;
         const oldDirX = player.dirX;
