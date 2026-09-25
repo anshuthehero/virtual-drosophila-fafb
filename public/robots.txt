@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://virtual-drosophila-fafb.netlify.app/sitemap.xml
+Sitemap: https://fruitflybrainplaydoom.netlify.app/sitemap.xml

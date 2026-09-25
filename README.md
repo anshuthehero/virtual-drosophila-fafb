@@ -1,8 +1,8 @@
-# NEURAL LABYRINTH // FLYWIRE FAFB CONNECTOME
+# DOOM-FLY // FLYWIRE FAFB CONNECTOME
 
-An authentic, hardcore arcade labyrinth game where an artificial fruit fly (*Drosophila melanogaster*) navigates complex corridors and makes real-time survival decisions driven directly by the **FlyWire FAFB (Full Adult Female Brain)** connectome dataset ([codex.flywire.ai/?dataset=fafb](https://codex.flywire.ai/?dataset=fafb)).
+> **Live Demo**: [https://fruitflybrainplaydoom.netlify.app](https://fruitflybrainplaydoom.netlify.app)
 
-Styled with the retro high-contrast scientific console aesthetic of **DoomFly** (`fly-brain-doom`).
+An authentic biological simulation of the fruit fly (*Drosophila melanogaster*) brain connectome playing 3D DOOM in real time in the browser, driven directly by the **FlyWire FAFB (Full Adult Female Brain)** electron microscopy dataset ([codex.flywire.ai/?dataset=fafb](https://codex.flywire.ai/?dataset=fafb)).
 
 ---
 
