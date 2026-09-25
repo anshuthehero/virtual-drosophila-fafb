@@ -2,7 +2,7 @@ import { DemonEntity, DoomButtons, DoomPlayer, ItemEntity } from './types';
 import { RingAttractorModel } from '../simulation/ringAttractor';
 import { DOOM_GRID, DOOM_MAP_HEIGHT, DOOM_MAP_WIDTH } from './doomMap';
 
-type WanderPhase = 'MOVE' | 'TURN';
+type WanderPhase = 'MOVE' | 'TURNING';
 
 export class FlyBrainDoomAgent {
   public ringAttractor: RingAttractorModel;
@@ -14,14 +14,17 @@ export class FlyBrainDoomAgent {
   private aimTolerance: number = 0.15;
   private fireCooldown: number = 0;
 
-  // Wander state machine: MOVE straight, then TURN to a new heading
+  // Wander: MOVE straight → detect wall → pick best open heading → TURN to it → MOVE
   private wanderPhase: WanderPhase = 'MOVE';
-  private wanderMoveTimer: number = 1.5;  // seconds to move straight
-  private wanderTurnTimer: number = 0;    // seconds left to turn
-  private wanderTurnDir: number = 1;      // +1 = right, -1 = left
+  private wanderMoveTimer: number = 2.0;
+  private targetAngle: number = 0;        // world angle we're turning to face
+  private stuckTimer: number = 0;         // how long since we last moved
+  private lastX: number = -999;
+  private lastY: number = -999;
 
   constructor() {
     this.ringAttractor = new RingAttractorModel();
+    this.targetAngle = 0;
   }
 
   public setEBLesion(percent: number) {
@@ -29,7 +32,7 @@ export class FlyBrainDoomAgent {
     this.ringAttractor.update(0.05, 0);
   }
 
-  /** Grid-based LOS check — returns false if any wall blocks the ray */
+  /** Grid LOS: returns false if wall blocks ray from (x0,y0) to (x1,y1) */
   private hasLOS(x0: number, y0: number, x1: number, y1: number): boolean {
     const dist = Math.hypot(x1 - x0, y1 - y0);
     const steps = Math.ceil(dist * 10);
@@ -43,18 +46,51 @@ export class FlyBrainDoomAgent {
     return true;
   }
 
-  /** Check if player can move to a position (same logic as App.tsx canMoveTo) */
-  private canMove(x: number, y: number): boolean {
-    const r = 0.25;
-    for (const dx of [-r, r]) {
-      for (const dy of [-r, r]) {
-        const mx = Math.floor(x + dx);
-        const my = Math.floor(y + dy);
-        if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return false;
-        if (DOOM_GRID[my][mx] > 0) return false;
+  /** How far we can walk in direction (cos θ, sin θ) before hitting a wall — max 6 units */
+  private castRay(x: number, y: number, dirX: number, dirY: number): number {
+    const max = 6.0;
+    const steps = 60; // 0.1 unit per step
+    for (let i = 1; i <= steps; i++) {
+      const cx = x + dirX * (i / 10);
+      const cy = y + dirY * (i / 10);
+      const mx = Math.floor(cx);
+      const my = Math.floor(cy);
+      if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return i / 10;
+      if (DOOM_GRID[my][mx] > 0) return i / 10;
+    }
+    return max;
+  }
+
+  /**
+   * Scan 8 directions from current position, return the world angle with the
+   * longest clear path. Biased toward the current heading to avoid U-turns.
+   */
+  private bestOpenAngle(px: number, py: number, currentAngle: number): number {
+    let bestAngle = currentAngle;
+    let bestDist = -1;
+
+    const candidates = 8;
+    for (let i = 0; i < candidates; i++) {
+      const angle = currentAngle + (i / candidates) * Math.PI * 2;
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      // Penalize angles that require a big turn (prefer forward-ish directions)
+      const turnCost = Math.abs(Math.atan2(Math.sin(angle - currentAngle), Math.cos(angle - currentAngle)));
+      const clearDist = this.castRay(px, py, dx, dy) - turnCost * 0.3;
+      if (clearDist > bestDist) {
+        bestDist = clearDist;
+        bestAngle = angle;
       }
     }
-    return true;
+    return bestAngle;
+  }
+
+  /** Angle difference normalized to (-π, π) */
+  private angleDiff(a: number, b: number): number {
+    let d = a - b;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
   }
 
   public step(
@@ -78,7 +114,18 @@ export class FlyBrainDoomAgent {
     };
     let giantFiberSpike = false;
 
-    // ── 1. SCAN: find closest visible demon ────────────────────────────────
+    // ── stuck detector: if barely moved in 0.8s, force a new heading ──────
+    const movedDist = Math.hypot(player.x - this.lastX, player.y - this.lastY);
+    if (movedDist < 0.02) {
+      this.stuckTimer += dt;
+    } else {
+      this.stuckTimer = 0;
+      this.lastX = player.x;
+      this.lastY = player.y;
+    }
+    const isStuck = this.stuckTimer > 0.8;
+
+    // ── 1. Find closest visible demon ─────────────────────────────────────
     let closestDemon: DemonEntity | null = null;
     let minDemonDist = 999;
     let demonAngleDelta = 0;
@@ -91,21 +138,19 @@ export class FlyBrainDoomAgent {
       if (dist > 12 || dist >= minDemonDist) continue;
 
       const worldAngle = Math.atan2(dy, dx);
-      let angleDiff = worldAngle - player.angleRad;
-      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      const aDiff = this.angleDiff(worldAngle, player.angleRad);
 
-      if (Math.abs(angleDiff) < 0.87 && this.hasLOS(player.x, player.y, demon.x, demon.y)) {
+      if (Math.abs(aDiff) < 0.87 && this.hasLOS(player.x, player.y, demon.x, demon.y)) {
         minDemonDist = dist;
         closestDemon = demon;
-        demonAngleDelta = angleDiff;
+        demonAngleDelta = aDiff;
       }
     }
 
     this.fearSpikeLevel = closestDemon && minDemonDist < 10
       ? Math.min(1.0, (10 - minDemonDist) / 8.0) : 0;
 
-    // ── 2. SCAN: find closest item if needed ───────────────────────────────
+    // ── 2. Find closest item ───────────────────────────────────────────────
     let closestItem: ItemEntity | null = null;
     let minItemDist = 999;
     let itemAngleDelta = 0;
@@ -115,12 +160,9 @@ export class FlyBrainDoomAgent {
       const dx = item.x - player.x;
       const dy = item.y - player.y;
       const dist = Math.hypot(dx, dy);
-      const worldAngle = Math.atan2(dy, dx);
-      let angleDiff = worldAngle - player.angleRad;
-      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-      if (Math.abs(angleDiff) < 1.2 && dist < minItemDist) {
-        minItemDist = dist; closestItem = item; itemAngleDelta = angleDiff;
+      const aDiff = this.angleDiff(Math.atan2(dy, dx), player.angleRad);
+      if (Math.abs(aDiff) < 1.2 && dist < minItemDist) {
+        minItemDist = dist; closestItem = item; itemAngleDelta = aDiff;
       }
     }
     this.rewardSpikeLevel = closestItem && minItemDist < 8
@@ -128,8 +170,8 @@ export class FlyBrainDoomAgent {
 
     // ── 3. ACTION SELECTION ────────────────────────────────────────────────
 
-    // Case A: Demon visible with LOS — COMBAT
-    if (closestDemon) {
+    // Case A: COMBAT — demon visible and has LOS
+    if (closestDemon && !isStuck) {
       if (Math.abs(demonAngleDelta) < this.aimTolerance) {
         // Crosshair locked — FIRE
         if (this.fireCooldown <= 0 && player.ammo > 0) {
@@ -137,89 +179,89 @@ export class FlyBrainDoomAgent {
           giantFiberSpike = true;
           this.fireCooldown = 0.6;
           this.lastDecisionReason = 'GIANT FIBER SPIKE: FIRE SHOTGUN';
-        } else {
-          // Hold position / backpedal if too close
-          if (minDemonDist > 3.0) buttons.moveForward = true;
-          else if (minDemonDist < 1.8) buttons.moveBackward = true;
-          this.lastDecisionReason = 'TARGET LOCKED: HOLDING POSITION';
         }
+        // ALWAYS approach demon unless very close — fixes the dead-zone freeze
+        if (minDemonDist > 1.8) buttons.moveForward = true;
+        else buttons.moveBackward = true;
+        if (!buttons.fire) this.lastDecisionReason = 'TARGET LOCKED: ADVANCING';
       } else {
-        // Turn ONLY — no forward during aiming turn (avoids circular arc)
+        // Steer toward demon — turn only, no forward unless well-aligned
         if (demonAngleDelta < 0) buttons.turnLeft = true;
         else buttons.turnRight = true;
-        // Approach only when demon is far and roughly ahead
-        if (minDemonDist > 4.0 && Math.abs(demonAngleDelta) < 0.5) {
+        // Only approach if we're fairly well aimed (< 0.4 rad) and far
+        if (minDemonDist > 2.5 && Math.abs(demonAngleDelta) < 0.4) {
           buttons.moveForward = true;
         }
         this.lastDecisionReason = demonAngleDelta < 0
-          ? 'P-EN STEERING: AIMING LEFT AT DEMON' : 'P-EN STEERING: AIMING RIGHT AT DEMON';
+          ? 'P-EN STEERING: AIMING LEFT AT DEMON'
+          : 'P-EN STEERING: AIMING RIGHT AT DEMON';
       }
-      // Reset wander so exploration restarts cleanly after combat
+      // Reset wander state so next patrol starts fresh
       this.wanderPhase = 'MOVE';
-      this.wanderMoveTimer = 1.0;
+      this.wanderMoveTimer = 1.5;
     }
 
-    // Case B: Low resources + item visible — SEEK
-    else if (closestItem && (player.health < 60 || player.ammo < 8)) {
+    // Case B: SEEK supplies
+    else if (closestItem && (player.health < 60 || player.ammo < 8) && !isStuck) {
       if (Math.abs(itemAngleDelta) < 0.15) {
         buttons.moveForward = true;
         this.lastDecisionReason = 'PAM DOPAMINE: COLLECTING SUPPLIES';
       } else {
-        // Turn only, no forward — stops the circle problem
         if (itemAngleDelta < 0) buttons.turnLeft = true;
         else buttons.turnRight = true;
         this.lastDecisionReason = 'PAM: TURNING TO SUPPLIES';
       }
       this.wanderPhase = 'MOVE';
-      this.wanderMoveTimer = 1.0;
+      this.wanderMoveTimer = 1.5;
     }
 
-    // Case C: WANDER — two-phase state machine
-    // Phase MOVE: go straight until hitting a wall or timer expires
-    // Phase TURN: rotate in place to a new direction, then switch back to MOVE
+    // Case C: EXPLORE — smart maze navigation
     else {
       const ringState = this.ringAttractor.getState();
 
       if (ringState.stability < 0.5 || ringState.lesionPercentage >= 40) {
-        // EB Lesion: erratic spinning
         buttons.turnLeft = true;
         if (Math.random() > 0.4) buttons.moveForward = true;
         this.lastDecisionReason = 'EB LESION: COMPASS INCOHERENCE';
       } else {
-        // Check if a wall is directly in front
-        const lookAhead = 0.55;
-        const frontX = player.x + player.dirX * lookAhead;
-        const frontY = player.y + player.dirY * lookAhead;
-        const wallAhead = !this.canMove(frontX, frontY);
+        // Look ahead: how much clear space is straight in front?
+        const lookDist = this.castRay(player.x, player.y, player.dirX, player.dirY);
+        const wallAhead = lookDist < 0.6;
 
-        if (this.wanderPhase === 'MOVE') {
-          if (wallAhead || this.wanderMoveTimer <= 0) {
-            // Hit wall or timer done → switch to TURN phase
-            this.wanderPhase = 'TURN';
-            // Pick a random turn direction and duration (0.4–1.0s)
-            this.wanderTurnDir = Math.random() < 0.5 ? -1 : 1;
-            this.wanderTurnTimer = 0.4 + Math.random() * 0.6;
-            this.lastDecisionReason = 'EB COMPASS: WALL DETECTED, TURNING';
-          } else {
-            // Move straight ahead
-            this.wanderMoveTimer -= dt;
-            buttons.moveForward = true;
-            this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
-          }
+        if (isStuck || (wallAhead && this.wanderPhase === 'MOVE')) {
+          // STUCK or WALL HIT → find the best open direction and commit to it
+          this.stuckTimer = 0;
+          const best = this.bestOpenAngle(player.x, player.y, player.angleRad);
+          this.targetAngle = best;
+          this.wanderPhase = 'TURNING';
+          this.lastDecisionReason = 'EB COMPASS: FINDING OPEN PATH';
         }
 
-        if (this.wanderPhase === 'TURN') {
-          this.wanderTurnTimer -= dt;
-          if (this.wanderTurnTimer <= 0) {
-            // Done turning → switch back to MOVE with a fresh timer
+        if (this.wanderPhase === 'TURNING') {
+          const diff = this.angleDiff(this.targetAngle, player.angleRad);
+          if (Math.abs(diff) < 0.08) {
+            // Aligned with target heading → start moving
             this.wanderPhase = 'MOVE';
-            this.wanderMoveTimer = 1.2 + Math.random() * 1.5; // 1.2–2.7s straight
+            this.wanderMoveTimer = 1.8 + Math.random() * 1.5; // 1.8–3.3s straight
             this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
           } else {
-            // Turn in place ONLY — no forward so it doesn't arc
-            if (this.wanderTurnDir > 0) buttons.turnRight = true;
-            else buttons.turnLeft = true;
-            this.lastDecisionReason = 'EB COMPASS: FINDING NEW HEADING';
+            // Turn toward best heading — NO forward movement
+            if (diff < 0) buttons.turnLeft = true;
+            else buttons.turnRight = true;
+            this.lastDecisionReason = 'EB COMPASS: FINDING OPEN PATH';
+          }
+        } else {
+          // MOVE phase: go straight, count down timer
+          this.wanderMoveTimer -= dt;
+          if (this.wanderMoveTimer <= 0) {
+            // Time's up → pick a new direction (slight random bias, not U-turn)
+            const bias = (Math.random() - 0.5) * Math.PI * 0.9; // ±81° bias
+            this.targetAngle = player.angleRad + bias;
+            this.wanderPhase = 'TURNING';
+            this.lastDecisionReason = 'EB COMPASS: CHOOSING NEXT CORRIDOR';
+          } else {
+            buttons.moveForward = true;
+            this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
           }
         }
       }
