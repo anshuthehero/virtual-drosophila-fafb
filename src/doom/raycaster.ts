@@ -478,8 +478,9 @@ export class DoomRaycaster {
   }
 
   /**
-   * High-detail classic DOOM Imp / Demon Sprite
-   * Features: Muscular chest, bone horns, fangs, glowing eyes, walk anim, hurt recoil, and fireballs
+   * Ultra-Creepy Multi-Archetype DOOM Demon Renderer
+   * Renders Imp, Baron, Cacodemon, and Shadow Stalker with horrifying detail:
+   * Glowing bloodshot eyes, dripping gore, pulsating flesh, and eerie demonic auras.
    */
   private renderDemonSprite(
     ctx: CanvasRenderingContext2D,
@@ -491,132 +492,328 @@ export class DoomRaycaster {
     depth: number
   ) {
     ctx.save();
-    const cx = screenX;
-    const cy = startY + height * 0.58;
-    const sz = width * 0.48;
-
-    // Walking animation sway
-    const walkBob = Math.sin(demon.animFrame * 8) * (sz * 0.08);
+    const type = demon.demonType || 'IMP';
     const isHurt = demon.hurtTimer > 0;
     const isAttacking = demon.state === 'ATTACK';
+    const isChasing = demon.state === 'CHASE';
 
-    // Depth shading on sprite
-    const depthDim = Math.max(0.3, Math.min(1.0, 1.0 - depth / 14.0));
+    // Horror twitch / jitter animation for nightmare effect
+    const jitter = type === 'SHADOW' ? (Math.random() - 0.5) * 4 : 0;
+    const cx = screenX + jitter;
+    const cy = startY + height * 0.58;
+    const sz = width * 0.48 * (type === 'BARON' ? 1.25 : type === 'CACODEMON' ? 1.15 : 1.0);
 
-    // Demon Color Palette
-    const baseColor = isHurt ? '#FFFFFF' : '#8A2A1A';
-    const darkShade = isHurt ? '#FFAAAA' : '#4E140C';
-    const muscleHighlight = isHurt ? '#FFFFFF' : '#A93B28';
+    // Walking animation sway
+    const walkBob = Math.sin(demon.animFrame * (type === 'SHADOW' ? 12 : 8)) * (sz * 0.08);
 
-    // 1. Back Spikes & Spine
-    ctx.fillStyle = isHurt ? '#FFFFFF' : '#2A0D07';
-    ctx.beginPath();
-    ctx.moveTo(cx - sz * 0.45, cy - sz * 0.2);
-    ctx.lineTo(cx - sz * 0.7, cy - sz * 0.5);
-    ctx.lineTo(cx - sz * 0.3, cy - sz * 0.3);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(cx + sz * 0.45, cy - sz * 0.2);
-    ctx.lineTo(cx + sz * 0.7, cy - sz * 0.5);
-    ctx.lineTo(cx + sz * 0.3, cy - sz * 0.3);
-    ctx.fill();
-
-    // 2. Muscular Torso & Abdomen
-    ctx.fillStyle = darkShade;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + walkBob, sz * 0.52, sz * 0.68, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Chest plates / Pectorals
-    ctx.fillStyle = baseColor;
-    ctx.beginPath();
-    ctx.ellipse(cx - sz * 0.18, cy - sz * 0.1 + walkBob, sz * 0.22, sz * 0.26, -0.15, 0, Math.PI * 2);
-    ctx.ellipse(cx + sz * 0.18, cy - sz * 0.1 + walkBob, sz * 0.22, sz * 0.26, 0.15, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Muscular Highlights
-    ctx.fillStyle = muscleHighlight;
-    ctx.beginPath();
-    ctx.arc(cx - sz * 0.18, cy - sz * 0.14 + walkBob, sz * 0.12, 0, Math.PI * 2);
-    ctx.arc(cx + sz * 0.18, cy - sz * 0.14 + walkBob, sz * 0.12, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 3. Demonic Head
-    const headY = cy - sz * 0.65 + walkBob;
-    ctx.fillStyle = baseColor;
-    ctx.beginPath();
-    ctx.ellipse(cx, headY, sz * 0.38, sz * 0.44, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Sweeping Bone Horns
-    ctx.fillStyle = isHurt ? '#FFFFFF' : '#22110D';
-    // Left horn
-    ctx.beginPath();
-    ctx.moveTo(cx - sz * 0.22, headY - sz * 0.15);
-    ctx.quadraticCurveTo(cx - sz * 0.65, headY - sz * 0.75, cx - sz * 0.75, headY - sz * 0.95);
-    ctx.quadraticCurveTo(cx - sz * 0.4, headY - sz * 0.55, cx - sz * 0.12, headY - sz * 0.35);
-    ctx.fill();
-
-    // Right horn
-    ctx.beginPath();
-    ctx.moveTo(cx + sz * 0.22, headY - sz * 0.15);
-    ctx.quadraticCurveTo(cx + sz * 0.65, headY - sz * 0.75, cx + sz * 0.75, headY - sz * 0.95);
-    ctx.quadraticCurveTo(cx + sz * 0.4, headY - sz * 0.55, cx + sz * 0.12, headY - sz * 0.35);
-    ctx.fill();
-
-    // 5. Piercing Glowing Eyes (Classic Doom Fire Eyes)
-    ctx.fillStyle = '#FF0033';
-    ctx.shadowColor = '#FF1E56';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.arc(cx - sz * 0.16, headY - sz * 0.08, Math.max(2, sz * 0.07), 0, Math.PI * 2);
-    ctx.arc(cx + sz * 0.16, headY - sz * 0.08, Math.max(2, sz * 0.07), 0, Math.PI * 2);
-    ctx.fill();
-
-    // Fiery eye pupil center
-    ctx.fillStyle = '#FFFF55';
-    ctx.beginPath();
-    ctx.arc(cx - sz * 0.16, headY - sz * 0.08, Math.max(1, sz * 0.035), 0, Math.PI * 2);
-    ctx.arc(cx + sz * 0.16, headY - sz * 0.08, Math.max(1, sz * 0.035), 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    // 6. Snarling Maw / Jagged Teeth
-    ctx.fillStyle = '#100302';
-    ctx.beginPath();
-    ctx.ellipse(cx, headY + sz * 0.2, sz * 0.22, sz * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Sharp white fangs
-    ctx.fillStyle = '#F5F5F0';
-    for (let f = -2; f <= 2; f++) {
-      ctx.beginPath();
-      ctx.moveTo(cx + f * sz * 0.07, headY + sz * 0.13);
-      ctx.lineTo(cx + f * sz * 0.07 + sz * 0.03, headY + sz * 0.25);
-      ctx.lineTo(cx + f * sz * 0.07 - sz * 0.03, headY + sz * 0.25);
-      ctx.fill();
+    // Eerie Demonic Aura (Shadow blur radiating from terrifying fiends)
+    if (isChasing || isAttacking) {
+      const auraColor =
+        type === 'BARON'
+          ? 'rgba(0, 255, 100, 0.25)'
+          : type === 'CACODEMON'
+          ? 'rgba(0, 180, 255, 0.25)'
+          : type === 'SHADOW'
+          ? 'rgba(180, 0, 255, 0.35)'
+          : 'rgba(255, 20, 20, 0.25)';
+      ctx.shadowColor = auraColor;
+      ctx.shadowBlur = 18;
     }
 
-    // 7. Claws & Arms (With Fireball in hands if attacking!)
-    if (isAttacking) {
-      // Raised glowing fire claws
-      ctx.fillStyle = '#FF5500';
-      ctx.shadowColor = '#FF5500';
-      ctx.shadowBlur = 14;
+    // ── ARCHETYPE 1: CACODEMON (Floating Cyclopean Horror) ─────────────────
+    if (type === 'CACODEMON') {
+      const floatY = cy - sz * 0.3 + Math.sin(demon.animFrame * 4) * (sz * 0.12);
+
+      // Spherical spiky flesh body
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#8E1825';
       ctx.beginPath();
-      ctx.arc(cx - sz * 0.55, cy - sz * 0.2, sz * 0.16, 0, Math.PI * 2);
-      ctx.arc(cx + sz * 0.55, cy - sz * 0.2, sz * 0.16, 0, Math.PI * 2);
+      ctx.arc(cx, floatY, sz * 0.62, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Underside tentacles / horns
+      ctx.fillStyle = isHurt ? '#FFAAAA' : '#450910';
+      for (let t = -3; t <= 3; t++) {
+        const tx = cx + t * sz * 0.16;
+        const ty = floatY + sz * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(tx - sz * 0.08, ty);
+        ctx.lineTo(tx, ty + sz * 0.3 + Math.sin(demon.animFrame * 5 + t) * (sz * 0.08));
+        ctx.lineTo(tx + sz * 0.08, ty);
+        ctx.fill();
+      }
+
+      // Giant Cyclopean Demon Eye
+      const eyeY = floatY - sz * 0.15;
+      ctx.fillStyle = '#080102';
+      ctx.beginPath();
+      ctx.ellipse(cx, eyeY, sz * 0.32, sz * 0.26, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing Emerald / Cyan Eye Core
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#00FFE5';
+      ctx.shadowColor = '#00FFE5';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(cx, eyeY, sz * 0.16, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
+
+      // Bloodshot Red Veins
+      ctx.strokeStyle = '#FF0033';
+      ctx.lineWidth = 1.5;
+      for (let v = 0; v < 6; v++) {
+        const ang = (v / 6) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * (sz * 0.16), eyeY + Math.sin(ang) * (sz * 0.16));
+        ctx.lineTo(cx + Math.cos(ang) * (sz * 0.28), eyeY + Math.sin(ang) * (sz * 0.24));
+        ctx.stroke();
+      }
+
+      // Vertical Slit Pupil
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.ellipse(cx, eyeY, sz * 0.04, sz * 0.13, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Gaping Snapping Maw with Needle Fangs
+      const mouthY = floatY + sz * 0.24;
+      ctx.fillStyle = '#180205';
+      ctx.beginPath();
+      ctx.ellipse(cx, mouthY, sz * 0.44, sz * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Double-row serrated fangs
+      ctx.fillStyle = '#EDE8D5';
+      for (let f = -4; f <= 4; f++) {
+        // Upper fangs
+        ctx.beginPath();
+        ctx.moveTo(cx + f * sz * 0.09, mouthY - sz * 0.1);
+        ctx.lineTo(cx + f * sz * 0.09 + sz * 0.04, mouthY + sz * 0.06);
+        ctx.lineTo(cx + f * sz * 0.09 - sz * 0.04, mouthY + sz * 0.06);
+        ctx.fill();
+        // Lower fangs
+        ctx.beginPath();
+        ctx.moveTo(cx + f * sz * 0.09, mouthY + sz * 0.1);
+        ctx.lineTo(cx + f * sz * 0.09 + sz * 0.03, mouthY - sz * 0.04);
+        ctx.lineTo(cx + f * sz * 0.09 - sz * 0.03, mouthY - sz * 0.04);
+        ctx.fill();
+      }
+
+      // Electric Plasma Sparks when attacking
+      if (isAttacking) {
+        ctx.fillStyle = '#00E5FF';
+        ctx.shadowColor = '#00E5FF';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(cx, mouthY, sz * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
     }
 
-    // 8. Overhead Health Bar
+    // ── ARCHETYPE 2: SHADOW STALKER (Jittery Spectral Nightmare) ───────────
+    else if (type === 'SHADOW') {
+      const headY = cy - sz * 0.7 + walkBob;
+
+      // Writhing dark smoky silhouette
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#0B0512';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + walkBob, sz * 0.4, sz * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Slender elongated skull
+      ctx.beginPath();
+      ctx.ellipse(cx, headY, sz * 0.3, sz * 0.48, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eerie glowing Void-Purple Eyes (unnatural stare)
+      ctx.fillStyle = '#D946EF';
+      ctx.shadowColor = '#E879F9';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(cx - sz * 0.12, headY - sz * 0.08, Math.max(2, sz * 0.08), 0, Math.PI * 2);
+      ctx.arc(cx + sz * 0.12, headY - sz * 0.08, Math.max(2, sz * 0.08), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Elongated knife-like shadow talons
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#1C0B2B';
+      const armExtend = isAttacking ? sz * 0.4 : 0;
+      ctx.beginPath();
+      ctx.moveTo(cx - sz * 0.4, cy);
+      ctx.lineTo(cx - sz * 0.75 - armExtend, cy + sz * 0.5);
+      ctx.lineTo(cx - sz * 0.3, cy + sz * 0.2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + sz * 0.4, cy);
+      ctx.lineTo(cx + sz * 0.75 + armExtend, cy + sz * 0.5);
+      ctx.lineTo(cx + sz * 0.3, cy + sz * 0.2);
+      ctx.fill();
+    }
+
+    // ── ARCHETYPE 3: BARON OF HELL (Towering Horned Behemoth) ──────────────
+    else if (type === 'BARON') {
+      const headY = cy - sz * 0.75 + walkBob;
+
+      // Massive obsidian chest & shoulders
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#2D1612';
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + walkBob, sz * 0.65, sz * 0.75, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing Green Hell-Sigil Scars across chest
+      ctx.strokeStyle = '#00FF66';
+      ctx.shadowColor = '#00FF66';
+      ctx.shadowBlur = 8;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - sz * 0.25, cy - sz * 0.2 + walkBob);
+      ctx.lineTo(cx + sz * 0.25, cy + sz * 0.1 + walkBob);
+      ctx.moveTo(cx + sz * 0.25, cy - sz * 0.2 + walkBob);
+      ctx.lineTo(cx - sz * 0.25, cy + sz * 0.1 + walkBob);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Massive Goat Horns
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#1A0805';
+      ctx.beginPath();
+      ctx.moveTo(cx - sz * 0.25, headY - sz * 0.1);
+      ctx.quadraticCurveTo(cx - sz * 0.9, headY - sz * 0.9, cx - sz * 1.05, headY - sz * 0.4);
+      ctx.quadraticCurveTo(cx - sz * 0.6, headY - sz * 0.5, cx - sz * 0.1, headY - sz * 0.3);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + sz * 0.25, headY - sz * 0.1);
+      ctx.quadraticCurveTo(cx + sz * 0.9, headY - sz * 0.9, cx + sz * 1.05, headY - sz * 0.4);
+      ctx.quadraticCurveTo(cx + sz * 0.6, headY - sz * 0.5, cx + sz * 0.1, headY - sz * 0.3);
+      ctx.fill();
+
+      // Head
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#451D17';
+      ctx.beginPath();
+      ctx.ellipse(cx, headY, sz * 0.42, sz * 0.48, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glowing Hellfire Green Eyes
+      ctx.fillStyle = '#00FF66';
+      ctx.shadowColor = '#00FF66';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(cx - sz * 0.18, headY - sz * 0.08, Math.max(3, sz * 0.08), 0, Math.PI * 2);
+      ctx.arc(cx + sz * 0.18, headY - sz * 0.08, Math.max(3, sz * 0.08), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Heavy Claws with Green Hellfire when attacking
+      if (isAttacking) {
+        ctx.fillStyle = '#00FF66';
+        ctx.shadowColor = '#00FF66';
+        ctx.shadowBlur = 20;
+        ctx.beginPath();
+        ctx.arc(cx - sz * 0.65, cy - sz * 0.2, sz * 0.24, 0, Math.PI * 2);
+        ctx.arc(cx + sz * 0.65, cy - sz * 0.2, sz * 0.24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // ── ARCHETYPE 4: CLASSIC IMP (Charred Fire Demon with Blood Claws) ─────
+    else {
+      const baseColor = isHurt ? '#FFFFFF' : '#8A2A1A';
+      const darkShade = isHurt ? '#FFAAAA' : '#4E140C';
+
+      // Spine & spikes
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#2A0D07';
+      ctx.beginPath();
+      ctx.moveTo(cx - sz * 0.45, cy - sz * 0.2);
+      ctx.lineTo(cx - sz * 0.7, cy - sz * 0.5);
+      ctx.lineTo(cx - sz * 0.3, cy - sz * 0.3);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + sz * 0.45, cy - sz * 0.2);
+      ctx.lineTo(cx + sz * 0.7, cy - sz * 0.5);
+      ctx.lineTo(cx + sz * 0.3, cy - sz * 0.3);
+      ctx.fill();
+
+      // Torso
+      ctx.fillStyle = darkShade;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + walkBob, sz * 0.52, sz * 0.68, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      const headY = cy - sz * 0.65 + walkBob;
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.ellipse(cx, headY, sz * 0.38, sz * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Bone Horns
+      ctx.fillStyle = isHurt ? '#FFFFFF' : '#22110D';
+      ctx.beginPath();
+      ctx.moveTo(cx - sz * 0.22, headY - sz * 0.15);
+      ctx.quadraticCurveTo(cx - sz * 0.65, headY - sz * 0.75, cx - sz * 0.75, headY - sz * 0.95);
+      ctx.quadraticCurveTo(cx - sz * 0.4, headY - sz * 0.55, cx - sz * 0.12, headY - sz * 0.35);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(cx + sz * 0.22, headY - sz * 0.15);
+      ctx.quadraticCurveTo(cx + sz * 0.65, headY - sz * 0.75, cx + sz * 0.75, headY - sz * 0.95);
+      ctx.quadraticCurveTo(cx + sz * 0.4, headY - sz * 0.55, cx + sz * 0.12, headY - sz * 0.35);
+      ctx.fill();
+
+      // Burning Crimson Fire Eyes
+      ctx.fillStyle = '#FF0033';
+      ctx.shadowColor = '#FF1E56';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(cx - sz * 0.16, headY - sz * 0.08, Math.max(2, sz * 0.07), 0, Math.PI * 2);
+      ctx.arc(cx + sz * 0.16, headY - sz * 0.08, Math.max(2, sz * 0.07), 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFF55';
+      ctx.beginPath();
+      ctx.arc(cx - sz * 0.16, headY - sz * 0.08, Math.max(1, sz * 0.035), 0, Math.PI * 2);
+      ctx.arc(cx + sz * 0.16, headY - sz * 0.08, Math.max(1, sz * 0.035), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Maw & Fangs
+      ctx.fillStyle = '#100302';
+      ctx.beginPath();
+      ctx.ellipse(cx, headY + sz * 0.2, sz * 0.22, sz * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#F5F5F0';
+      for (let f = -2; f <= 2; f++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + f * sz * 0.07, headY + sz * 0.13);
+        ctx.lineTo(cx + f * sz * 0.07 + sz * 0.03, headY + sz * 0.25);
+        ctx.lineTo(cx + f * sz * 0.07 - sz * 0.03, headY + sz * 0.25);
+        ctx.fill();
+      }
+
+      // Burning Hellfire Claws when attacking
+      if (isAttacking) {
+        ctx.fillStyle = '#FF5500';
+        ctx.shadowColor = '#FF5500';
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(cx - sz * 0.55, cy - sz * 0.2, sz * 0.16, 0, Math.PI * 2);
+        ctx.arc(cx + sz * 0.55, cy - sz * 0.2, sz * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // Overhead Health Bar
     if (demon.health < demon.maxHealth) {
       const barW = Math.max(28, sz * 1.3);
       const barH = 4;
       const barX = cx - barW / 2;
-      const barY = headY - sz * 0.85;
+      const barY = (cy - sz * 0.8) - 10;
 
       // Dark border
       ctx.fillStyle = '#080808';

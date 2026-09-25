@@ -12,6 +12,9 @@ export class DemonManager {
     let playerDamage = 0;
     let demonsKilled = 0;
 
+    // 1. Pack Alert: If any demon is in CHASE or HURT, alert nearby demons within 14 units
+    const isAnyAlert = this.demons.some((d) => d.state === 'CHASE' || d.hurtTimer > 0);
+
     for (const demon of this.demons) {
       if (demon.state === 'DEAD') continue;
 
@@ -25,8 +28,9 @@ export class DemonManager {
         demon.attackCooldown -= dt;
       }
 
-      // Advance walk animation frame
-      demon.animFrame += dt * (demon.state === 'CHASE' ? 3.5 : 1.2);
+      // Advance walk animation frame (Shadow stalkers twitch faster)
+      const animMultiplier = demon.demonType === 'SHADOW' ? 5.5 : demon.state === 'CHASE' ? 3.5 : 1.2;
+      demon.animFrame += dt * animMultiplier;
 
       // Calculate distance and angle to player
       const dx = player.x - demon.x;
@@ -40,35 +44,60 @@ export class DemonManager {
       // Line of sight check: raycast from demon to player
       const hasLOS = this.checkLineOfSight(demon.x, demon.y, player.x, player.y);
 
-      // Demons ALWAYS chase if within hearing range (no LOS needed — they can hear you)
-      // This lets them navigate around walls toward the player
-      if (dist < 16) {
+      // Pack coordination: Alert if in hearing range OR pack member alerted nearby
+      if (dist < 16 || (isAnyAlert && dist < 18)) {
         demon.state = 'CHASE';
 
-        // Attack if in close melee range (< 1.4 units) AND has LOS
-        if (dist < 1.35 && demon.attackCooldown <= 0) {
+        // Attack if in close melee range (< 1.35 units) AND has LOS
+        if (dist < 1.35 && demon.attackCooldown <= 0 && hasLOS) {
           demon.state = 'ATTACK';
-          demon.attackCooldown = 0.9;
-          playerDamage += 16; // Claw strike
-        } else {
-          // Navigate toward player with wall-sliding (no pathfinding needed — sliding works)
-          const stepDist = demon.speed * dt;
-          const moveX = (dx / dist) * stepDist;
-          const moveY = (dy / dist) * stepDist;
+          demon.attackCooldown = demon.demonType === 'SHADOW' ? 0.6 : 0.9;
 
-          // Wall slide: try X then Y independently so demons slide along walls
+          // Damage based on demon archetype
+          const baseDamage =
+            demon.demonType === 'BARON'
+              ? 24
+              : demon.demonType === 'CACODEMON'
+              ? 18
+              : demon.demonType === 'SHADOW'
+              ? 14
+              : 16;
+          playerDamage += baseDamage;
+        } else {
+          // Tactical Pincer / Flanking Movement:
+          // Instead of all charging in a straight line, flankers approach from angles
+          let approachDx = dx / dist;
+          let approachDy = dy / dist;
+
+          if (dist > 2.0 && demon.flankRole) {
+            // Perpendicular vector (-dy, dx)
+            const perpX = -dy / dist;
+            const perpY = dx / dist;
+            const flankFactor = demon.flankRole === 'LEFT' ? 0.45 : demon.flankRole === 'RIGHT' ? -0.45 : 0;
+            approachDx = approachDx + perpX * flankFactor;
+            approachDy = approachDy + perpY * flankFactor;
+            const norm = Math.hypot(approachDx, approachDy) || 1;
+            approachDx /= norm;
+            approachDy /= norm;
+          }
+
+          const stepDist = demon.speed * dt;
+          const moveX = approachDx * stepDist;
+          const moveY = approachDy * stepDist;
+
+          // Wall slide: try X then Y independently so demons glide along walls
           const canX = !this.isWallWithRadius(demon.x + moveX, demon.y, 0.22);
           const canY = !this.isWallWithRadius(demon.x, demon.y + moveY, 0.22);
 
           if (canX) demon.x += moveX;
           if (canY) demon.y += moveY;
 
-          // If completely stuck (both blocked), try perpendicular slide to unstick
+          // Perpendicular slide fallback if cornered
           if (!canX && !canY) {
-            const perpX = -moveY;
-            const perpY = moveX;
-            if (!this.isWallWithRadius(demon.x + perpX, demon.y, 0.22)) demon.x += perpX;
-            else if (!this.isWallWithRadius(demon.x, demon.y + perpY, 0.22)) demon.y += perpY;
+            const px = -moveY;
+            const py = moveX;
+            if (!this.isWallWithRadius(demon.x + px, demon.y, 0.22)) demon.x += px;
+            else if (!this.isWallWithRadius(demon.x, demon.y + py, 0.22)) demon.y += py;
           }
         }
       } else {
@@ -76,7 +105,46 @@ export class DemonManager {
       }
     }
 
-    // Soft repulsion between active demons to prevent clustering at exact same point
+    // Dynamic Reinforcement: Keep the action intense!
+    // If active demon count drops below 4, spawn a reinforcement in a distant room
+    const activeDemons = this.demons.filter((d) => d.state !== 'DEAD');
+    if (activeDemons.length < 5 && this.demons.length < 14) {
+      const candidateSpawns = [
+        { x: 13.5, y: 2.5, type: 'CACODEMON' as const },
+        { x: 13.5, y: 13.5, type: 'BARON' as const },
+        { x: 2.5, y: 12.5, type: 'SHADOW' as const },
+        { x: 8.5, y: 13.5, type: 'IMP' as const },
+        { x: 8.5, y: 2.5, type: 'IMP' as const }
+      ];
+
+      for (const sp of candidateSpawns) {
+        if (Math.hypot(sp.x - player.x, sp.y - player.y) > 7.0) {
+          const occupied = this.demons.some((d) => d.state !== 'DEAD' && Math.hypot(d.x - sp.x, d.y - sp.y) < 2.0);
+          if (!occupied && !this.isWall(sp.x, sp.y)) {
+            const flankRoles: ('DIRECT' | 'LEFT' | 'RIGHT')[] = ['DIRECT', 'LEFT', 'RIGHT'];
+            this.demons.push({
+              id: `demon_reinforce_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+              x: sp.x,
+              y: sp.y,
+              health: sp.type === 'BARON' ? 120 : sp.type === 'CACODEMON' ? 85 : 70,
+              maxHealth: sp.type === 'BARON' ? 120 : sp.type === 'CACODEMON' ? 85 : 70,
+              state: 'CHASE',
+              speed: sp.type === 'SHADOW' ? 2.3 : sp.type === 'BARON' ? 1.7 : 1.9,
+              animFrame: Math.random() * 5,
+              hurtTimer: 0,
+              attackCooldown: 0.5,
+              distToPlayer: Math.hypot(sp.x - player.x, sp.y - player.y),
+              angleToPlayer: 0,
+              demonType: sp.type,
+              flankRole: flankRoles[Math.floor(Math.random() * flankRoles.length)]
+            });
+            break;
+          }
+        }
+      }
+    }
+
+    // Soft repulsion between active demons to prevent overlapping
     for (let i = 0; i < this.demons.length; i++) {
       const d1 = this.demons[i];
       if (d1.state === 'DEAD') continue;

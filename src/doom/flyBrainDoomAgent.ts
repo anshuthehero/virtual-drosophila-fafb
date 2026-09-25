@@ -139,10 +139,14 @@ export class FlyBrainDoomAgent {
     // ── 3. Connectome Action Selection ─────────────────────────────────────
     const ringState = this.ringAttractor.getState();
 
+    // Helper: Test if forward movement is safe from hitting a wall
+    const frontWallDist = this.castRay(player.x, player.y, player.dirX, player.dirY, 3.0);
+    const canSafelyAdvance = frontWallDist > 0.80;
+
     // Condition 0: Ellipsoid Body Compass Lesion
     if (ringState.stability < 0.5 || ringState.lesionPercentage >= 40) {
       buttons.turnLeft = true;
-      buttons.moveForward = Math.random() > 0.4;
+      buttons.moveForward = Math.random() > 0.4 && canSafelyAdvance;
       this.lastDecisionReason = 'EB LESION: COMPASS INCOHERENCE (SPINNING)';
     }
 
@@ -160,12 +164,15 @@ export class FlyBrainDoomAgent {
         }
 
         // Tactical movement during combat:
-        // Advance if demon is beyond shotgun sweet spot (> 2.0 units)
-        // Backpedal slightly if demon is dangerously close (< 1.2 units)
-        if (minDemonDist > 2.0) {
+        // Advance if demon is beyond shotgun sweet spot (> 2.0 units) AND path is clear
+        if (minDemonDist > 2.0 && canSafelyAdvance) {
           buttons.moveForward = true;
         } else if (minDemonDist < 1.2) {
-          buttons.moveBackward = true;
+          // Backpedal only if space behind is clear
+          const backDist = this.castRay(player.x, player.y, -player.dirX, -player.dirY, 1.5);
+          if (backDist > 0.6) {
+            buttons.moveBackward = true;
+          }
         }
       } else {
         // P-EN Steered tracking towards demon
@@ -177,8 +184,8 @@ export class FlyBrainDoomAgent {
           this.lastDecisionReason = 'P-EN STEERING: AIMING RIGHT AT DEMON';
         }
 
-        // If roughly aligned and far away, advance while turning to close distance
-        if (minDemonDist > 2.5 && Math.abs(demonAngleDelta) < 0.5) {
+        // If roughly aligned and far away, advance while turning only if wall is not in front
+        if (minDemonDist > 2.5 && Math.abs(demonAngleDelta) < 0.5 && canSafelyAdvance) {
           buttons.moveForward = true;
         }
       }
@@ -187,7 +194,7 @@ export class FlyBrainDoomAgent {
     // Condition B: Needs supplies & item in view
     else if (closestItem && (player.health < 60 || player.ammo < 10)) {
       if (Math.abs(itemAngleDelta) < 0.2) {
-        buttons.moveForward = true;
+        if (canSafelyAdvance) buttons.moveForward = true;
         this.lastDecisionReason = 'PAM DOPAMINE: COLLECTING SUPPLIES';
       } else if (itemAngleDelta < 0) {
         buttons.turnLeft = true;
@@ -221,11 +228,11 @@ export class FlyBrainDoomAgent {
       const distRight = this.castRay(player.x, player.y, Math.cos(rightAngle), Math.sin(rightAngle), 4.5);
 
       // 1. Approaching a wall directly in front
-      if (distCenter < 1.0) {
+      if (distCenter < 1.3) {
         // If not already in a committed turn, pick the more open direction and LATCH it for 0.4s
         if (this.cornerTurnTimer <= 0) {
           this.cornerTurnDir = distLeft >= distRight ? -1 : 1;
-          this.cornerTurnTimer = 0.4; // Commit to turning for 400ms to eliminate chatter
+          this.cornerTurnTimer = 0.4;
         }
 
         // Execute latched turn
@@ -235,8 +242,9 @@ export class FlyBrainDoomAgent {
           buttons.turnRight = true;
         }
 
-        // Move forward if there's still a bit of clearance
-        if (distCenter > 0.35) {
+        // Only move forward if distance to wall is comfortably greater than 0.75
+        // This ensures the fly NEVER bumps the wall!
+        if (distCenter > 0.75) {
           buttons.moveForward = true;
         }
         this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
@@ -248,7 +256,9 @@ export class FlyBrainDoomAgent {
         } else {
           buttons.turnRight = true;
         }
-        buttons.moveForward = true;
+        if (distCenter > 0.75) {
+          buttons.moveForward = true;
+        }
         this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
       }
       // 3. Corridor ahead is clear and open!
@@ -256,17 +266,17 @@ export class FlyBrainDoomAgent {
         this.cornerTurnDir = 0;
         buttons.moveForward = true;
 
-        // Corridor centering with deadband (no chatter!)
-        // Only nudge if significantly closer to one wall than the other
-        if (distLeft < 0.6 && distRight > 0.8) {
+        // Corridor centering with generous safety margin:
+        // Steer away from walls early (0.75 cushion) to avoid brushing sides
+        if (distLeft < 0.75 && distRight > 0.85) {
           buttons.turnRight = true;
-        } else if (distRight < 0.6 && distLeft > 0.8) {
+        } else if (distRight < 0.75 && distLeft > 0.85) {
           buttons.turnLeft = true;
-        } else if (distCenter < 2.0) {
-          // Gentle curving into bending corridor
-          if (distLeft > distRight + 0.6) {
+        } else if (distCenter < 2.2) {
+          // Anticipatory curve into bending corridor
+          if (distLeft > distRight + 0.5) {
             buttons.turnLeft = true;
-          } else if (distRight > distLeft + 0.6) {
+          } else if (distRight > distLeft + 0.5) {
             buttons.turnRight = true;
           }
         }

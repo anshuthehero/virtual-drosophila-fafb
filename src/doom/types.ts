@@ -22,6 +22,7 @@ export interface DoomPlayer {
 }
 
 export type DemonState = 'IDLE' | 'CHASE' | 'ATTACK' | 'HURT' | 'DEAD';
+export type DemonType = 'IMP' | 'BARON' | 'CACODEMON' | 'SHADOW';
 
 export interface DemonEntity {
   id: string;
@@ -36,6 +37,8 @@ export interface DemonEntity {
   attackCooldown: number;
   distToPlayer: number;
   angleToPlayer: number;
+  demonType?: DemonType;
+  flankRole?: 'DIRECT' | 'LEFT' | 'RIGHT';
 }
 
 export interface ItemEntity {
