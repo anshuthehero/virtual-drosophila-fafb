@@ -15,7 +15,7 @@ import { DemonEntity, DoomButtons, DoomPlayer, ItemEntity } from './doom/types';
 
 export const App: React.FC = () => {
   // Game Singletons
-  const raycasterRef = useRef<DoomRaycaster>(new DoomRaycaster(420, 280));
+  const raycasterRef = useRef<DoomRaycaster>(new DoomRaycaster(640, 400));
   const demonsRef = useRef<DemonManager>(new DemonManager(getInitialDemons()));
   const itemsRef = useRef<ItemEntity[]>(getInitialItems());
   const agentRef = useRef<FlyBrainDoomAgent>(new FlyBrainDoomAgent());
@@ -373,8 +373,8 @@ export const App: React.FC = () => {
       <main className="flex-1 p-2 sm:p-4 max-w-[1600px] w-full mx-auto space-y-3">
         {/* UPPER SPLIT DECK: 3D DOOM Screen (Left) + NEURON->BUTTON Controls (Right) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-          {/* 3D Raycaster Screen */}
-          <div className="lg:col-span-7 flex flex-col items-center">
+          {/* 3D Raycaster Screen — big and dominant */}
+          <div className="lg:col-span-8 flex flex-col items-center">
             <DoomScreen
               raycaster={raycasterRef.current}
               player={playerState}
@@ -388,7 +388,7 @@ export const App: React.FC = () => {
           </div>
 
           {/* NEURON -> BUTTON Control Deck */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-4">
             <DoomControls
               buttons={buttonsState}
               reason={decisionReason}

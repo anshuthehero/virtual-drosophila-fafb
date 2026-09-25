@@ -1,5 +1,6 @@
 import { DemonEntity, DoomButtons, DoomPlayer, ItemEntity } from './types';
 import { RingAttractorModel } from '../simulation/ringAttractor';
+import { DOOM_GRID, DOOM_MAP_HEIGHT, DOOM_MAP_WIDTH } from './doomMap';
 
 export class FlyBrainDoomAgent {
   public ringAttractor: RingAttractorModel;
@@ -8,7 +9,7 @@ export class FlyBrainDoomAgent {
   public giantFiberActive: boolean = false;
   public lastDecisionReason: string = 'EXPLORING_CORRIDORS';
 
-  private aimTolerance: number = 0.18; // radians (~10 degrees)
+  private aimTolerance: number = 0.15; // radians (~8.6 degrees)
   private fireCooldown: number = 0;
   private wanderTimer: number = 0;
   private wanderTurnBias: number = 0;
@@ -20,6 +21,25 @@ export class FlyBrainDoomAgent {
   public setEBLesion(percent: number) {
     this.ringAttractor.setLesionPercentage(percent);
     this.ringAttractor.update(0.05, 0);
+  }
+
+  /**
+   * BUG FIX: Grid-based line-of-sight check so agent won't fire through walls.
+   * Marches a ray from (x0,y0) to (x1,y1) and returns false if any wall is hit.
+   */
+  private hasLOS(x0: number, y0: number, x1: number, y1: number): boolean {
+    const dist = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.ceil(dist * 10);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      const cx = x0 + (x1 - x0) * t;
+      const cy = y0 + (y1 - y0) * t;
+      const mx = Math.floor(cx);
+      const my = Math.floor(cy);
+      if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return false;
+      if (DOOM_GRID[my][mx] > 0) return false;
+    }
+    return true;
   }
 
   /**
@@ -56,6 +76,8 @@ export class FlyBrainDoomAgent {
     let demonAngleDelta = 0;
 
     // 1. Scan FOV for demons (Lobula Plate & LPLC2 Visual Looming Detectors)
+    // BUG FIX #1: Clamp to 12-unit visibility range (was 999)
+    // BUG FIX #2: Add LOS check so agent can't "see" demons through walls
     for (const demon of demons) {
       if (demon.state === 'DEAD') continue;
 
@@ -63,24 +85,29 @@ export class FlyBrainDoomAgent {
       const dy = demon.y - player.y;
       const dist = Math.hypot(dx, dy);
 
-      // Angle from player to demon
+      // Only react to demons within visible range
+      if (dist > 12 || dist >= minDemonDist) continue;
+
+      // Angle from player to demon (world space)
       const demonWorldAngle = Math.atan2(dy, dx);
       let angleDiff = demonWorldAngle - player.angleRad;
       while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
       while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-      // If within 110-degree FOV in front
-      if (Math.abs(angleDiff) < 1.0 && dist < minDemonDist) {
-        minDemonDist = dist;
-        closestDemon = demon;
-        demonAngleDelta = angleDiff;
+      // BUG FIX #3: Tighten FOV to ~100 degrees (was ~115)
+      if (Math.abs(angleDiff) < 0.87) {
+        // BUG FIX #4: Line-of-sight check — don't target demons behind walls
+        if (this.hasLOS(player.x, player.y, demon.x, demon.y)) {
+          minDemonDist = dist;
+          closestDemon = demon;
+          demonAngleDelta = angleDiff;
+        }
       }
     }
 
     // Compute looming threat intensity
     let threatIntensity = 0;
     if (closestDemon && minDemonDist < 10) {
-      // Threat increases quadratically as demon gets closer
       threatIntensity = Math.min(1.0, (10 - minDemonDist) / 8.0);
     }
     this.fearSpikeLevel = threatIntensity;
@@ -117,25 +144,24 @@ export class FlyBrainDoomAgent {
     // 3. Connectome Action Selection
     const ebStability = this.ringAttractor.getState().stability;
 
-    // Case A: Demon detected in FOV
+    // Case A: Demon detected in visible FOV with confirmed line-of-sight
     if (closestDemon) {
-      // Check if demon is lined up with the center crosshair
       if (Math.abs(demonAngleDelta) < this.aimTolerance) {
         // TARGET LOCKED IN CROSSHAIR!
         if (this.fireCooldown <= 0 && player.ammo > 0) {
           // Giant Fiber fires ballistic shotgun blast!
           buttons.fire = true;
           giantFiberSpike = true;
-          this.fireCooldown = 0.55; // Shotgun pump cycle
+          this.fireCooldown = 0.6; // Shotgun pump cycle
           this.lastDecisionReason = 'GIANT FIBER SPIKE: FIRE SHOTGUN';
         } else {
-          // If already fired or low on ammo, move or maintain aim
-          buttons.moveForward = minDemonDist > 3.0; // Advance if far
-          buttons.moveBackward = minDemonDist < 1.8; // Backpedal if too close!
+          // Maintain position / distance
+          buttons.moveForward = minDemonDist > 3.0;
+          buttons.moveBackward = minDemonDist < 1.8;
           this.lastDecisionReason = 'TARGET LOCKED: MAINTAINING DISTANCE';
         }
       } else {
-        // Demon is off-center: E-PG / P-EN steering turns towards demon to aim!
+        // Demon off-center: E-PG / P-EN steering turns to aim
         if (demonAngleDelta < 0) {
           buttons.turnLeft = true;
           this.lastDecisionReason = 'P-EN STEERING: AIMING LEFT AT DEMON';
@@ -143,20 +169,21 @@ export class FlyBrainDoomAgent {
           buttons.turnRight = true;
           this.lastDecisionReason = 'P-EN STEERING: AIMING RIGHT AT DEMON';
         }
-
-        // Slight forward approach while tracking
+        // Approach while tracking
         buttons.moveForward = minDemonDist > 3.5;
       }
     }
-    // Case B: No demons in sight, but health/ammo item nearby and player is low
+    // Case B: No demons visible, but supplies needed
     else if (closestItem && (player.health < 60 || player.ammo < 8)) {
       if (Math.abs(itemAngleDelta) < 0.2) {
         buttons.moveForward = true;
         this.lastDecisionReason = 'PAM DOPAMINE: COLLECTING SUPPLIES';
       } else if (itemAngleDelta < 0) {
         buttons.turnLeft = true;
+        this.lastDecisionReason = 'PAM DOPAMINE: TURNING TO SUPPLIES';
       } else {
         buttons.turnRight = true;
+        this.lastDecisionReason = 'PAM DOPAMINE: TURNING TO SUPPLIES';
       }
     }
     // Case C: Labyrinth Exploration & Patrol
@@ -167,9 +194,9 @@ export class FlyBrainDoomAgent {
         this.wanderTimer = 0.8 + Math.random() * 1.5;
       }
 
-      // If EB compass is damaged (>35% or stability < 0.5), induce continuous erratic spinning!
       const ringState = this.ringAttractor.getState();
       if (ringState.stability < 0.5 || ringState.lesionPercentage >= 40) {
+        // EB Lesion: compass incoherence → erratic spinning
         buttons.turnLeft = true;
         buttons.moveForward = Math.random() > 0.4;
         this.lastDecisionReason = 'EB LESION: COMPASS INCOHERENCE (SPINNING)';

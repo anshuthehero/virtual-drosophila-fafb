@@ -13,7 +13,7 @@ export class DoomRaycaster {
   private screenBuf: Uint32Array | null = null;
   private textures: Uint32Array[] = [];
 
-  constructor(width: number = 420, height: number = 280) {
+  constructor(width: number = 640, height: number = 400) {
     this.width = width;
     this.height = height;
     this.zBuffer = new Float32Array(width);
@@ -40,31 +40,30 @@ export class DoomRaycaster {
     tex0.fill(packRGBA(20, 20, 20));
     this.textures.push(tex0);
 
-    // 1: UAC Tech Steel Wall (Gunmetal steel plates with rivets and beveled seams)
+    // 1: UAC Tech Steel Wall — bright cool-gray steel with vivid rivets
     const tex1 = new Uint32Array(TEX_SIZE * TEX_SIZE);
     for (let y = 0; y < TEX_SIZE; y++) {
       for (let x = 0; x < TEX_SIZE; x++) {
-        // Base gunmetal
-        let r = 70 + ((x ^ y) % 5);
-        let g = 75 + ((x * y) % 6);
-        let b = 85 + (((x + y) * 7) % 8);
+        // Base steel-blue gunmetal (much brighter than before)
+        let r = 95 + ((x ^ y) % 12);
+        let g = 105 + ((x * y) % 10);
+        let b = 130 + (((x + y) * 7) % 14);
 
         // Dark bevel seam at edges
         if (x === 0 || x === 63 || y === 0 || y === 63) {
-          r = 25; g = 28; b = 32;
+          r = 35; g = 40; b = 50;
         } else if (x === 1 || y === 1) {
-          // Highlight rim
-          r += 40; g += 40; b += 45;
+          r += 55; g += 55; b += 60;
         }
 
-        // Horizontal steel crossbar at middle
+        // Horizontal reinforcement band
         if (y >= 29 && y <= 34) {
-          if (y === 29) { r += 35; g += 35; b += 40; }
-          else if (y === 34) { r = 30; g = 32; b = 35; }
-          else { r -= 15; g -= 15; b -= 15; }
+          if (y === 29) { r += 45; g += 45; b += 55; }
+          else if (y === 34) { r = 40; g = 44; b = 55; }
+          else { r -= 10; g -= 10; b -= 10; }
         }
 
-        // Heavy steel hex rivets in 4 corners
+        // Bright chrome rivets
         const isRivet =
           (x >= 4 && x <= 6 && y >= 4 && y <= 6) ||
           (x >= 57 && x <= 59 && y >= 4 && y <= 6) ||
@@ -74,7 +73,7 @@ export class DoomRaycaster {
           (x >= 30 && x <= 33 && y >= 57 && y <= 59);
 
         if (isRivet) {
-          r = 160; g = 170; b = 185; // Rivet metal gleam
+          r = 220; g = 230; b = 255; // Brilliant chrome gleam
         }
 
         tex1[y * TEX_SIZE + x] = packRGBA(r, g, b);
@@ -93,28 +92,30 @@ export class DoomRaycaster {
         const isVerticalMortar = (x + xOffset) % 32 === 0 || (x + xOffset) % 32 === 31;
 
         if (isHorizontalMortar || isVerticalMortar) {
-          // Deep dark mortar
-          tex2[y * TEX_SIZE + x] = packRGBA(22, 10, 8);
+          // Dark sandy mortar
+          tex2[y * TEX_SIZE + x] = packRGBA(35, 22, 15);
         } else {
-          // Brick surface texture
-          const grain = ((x * 13 + y * 29) % 25) - 12;
-          let r = 115 + grain;
-          let g = 38 + Math.floor(grain * 0.4);
-          let b = 28 + Math.floor(grain * 0.3);
+          // Vivid terracotta/orange-brick surface
+          const grain = ((x * 13 + y * 29) % 35) - 17;
+          let r = 170 + grain;  // vivid orange-red
+          let g = 70 + Math.floor(grain * 0.45);
+          let b = 35 + Math.floor(grain * 0.2);
 
-          // Top highlight on each stone
+          // Bright top highlight on each stone (DOOM-style relief)
           if (y % 16 === 1 || (x + xOffset) % 32 === 1) {
-            r += 35; g += 15; b += 10;
+            r += 40; g += 20; b += 10;
           }
 
-          // Dark blood / soot grunge streaks
-          if ((x * 7 + y * 11) % 43 < 6) {
-            r = Math.floor(r * 0.65);
-            g = Math.floor(g * 0.4);
-            b = Math.floor(b * 0.4);
+          // Blood / soot grunge streaks (kept minimal for vibrance)
+          if ((x * 7 + y * 11) % 51 < 4) {
+            r = Math.floor(r * 0.55);
+            g = Math.floor(g * 0.35);
+            b = Math.floor(b * 0.35);
           }
 
-          tex2[y * TEX_SIZE + x] = packRGBA(r, g, b);
+          tex2[y * TEX_SIZE + x] = packRGBA(
+            Math.min(255, r), Math.min(255, g), Math.min(255, b)
+          );
         }
       }
     }
@@ -226,21 +227,21 @@ export class DoomRaycaster {
     const flashG = Math.floor(flashIntensity * 35);
     const flashB = Math.floor(flashIntensity * 10);
 
-    // 1. Render Floor & Ceiling with depth gradient and dynamic flash lighting
+    // 1. Render Floor & Ceiling with vivid DOOM-style depth gradients + dynamic muzzle flash
     const halfH = Math.floor(h / 2);
     for (let y = 0; y < halfH; y++) {
-      // Ceiling gradient: dark industrial gunmetal fading to pitch black near horizon
-      const cGrad = (halfH - y) / halfH;
-      const cR = Math.min(255, Math.floor(18 * cGrad + 8 + flashR * 0.4));
-      const cG = Math.min(255, Math.floor(20 * cGrad + 8 + flashG * 0.4));
-      const cB = Math.min(255, Math.floor(26 * cGrad + 12 + flashB * 0.4));
+      // Ceiling: deep teal-cyan fading to near-black at horizon
+      const cGrad = (halfH - y) / halfH; // 1 at top, 0 at horizon
+      const cR = Math.min(255, Math.floor(10 * cGrad + 4 + flashR * 0.5));
+      const cG = Math.min(255, Math.floor(55 * cGrad + 12 + flashG * 0.5));
+      const cB = Math.min(255, Math.floor(80 * cGrad + 18 + flashB * 0.5));
       const cColor = (255 << 24) | (cB << 16) | (cG << 8) | cR;
 
-      // Floor gradient: dark slate floor with distance darkening
-      const fGrad = y / halfH;
-      const fR = Math.min(255, Math.floor(28 * fGrad + 10 + flashR * 0.6));
-      const fG = Math.min(255, Math.floor(24 * fGrad + 8 + flashG * 0.6));
-      const fB = Math.min(255, Math.floor(24 * fGrad + 8 + flashB * 0.6));
+      // Floor: blood-red brick fading to dark at horizon
+      const fGrad = y / halfH; // 0 at horizon, 1 at bottom
+      const fR = Math.min(255, Math.floor(80 * fGrad + 20 + flashR * 0.7));
+      const fG = Math.min(255, Math.floor(12 * fGrad + 5 + flashG * 0.5));
+      const fB = Math.min(255, Math.floor(10 * fGrad + 4 + flashB * 0.4));
       const fColor = (255 << 24) | (fB << 16) | (fG << 8) | fR;
 
       const topRow = y * w;
@@ -338,8 +339,9 @@ export class DoomRaycaster {
       }
 
       // Depth shading + side shadowing + dynamic muzzle flash lighting
-      const depthFactor = Math.max(0.12, Math.min(1.0, 1.0 - perpWallDist / 13.0));
-      const sideFactor = side === 1 ? 0.75 : 1.0;
+      // Min 0.22 so walls never go pitch-black (vivid colors stay readable at distance)
+      const depthFactor = Math.max(0.22, Math.min(1.0, 1.0 - perpWallDist / 14.0));
+      const sideFactor = side === 1 ? 0.80 : 1.0;
       const lightFactor = depthFactor * sideFactor;
 
       // Select texture buffer

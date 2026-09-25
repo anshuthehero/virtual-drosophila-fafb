@@ -216,12 +216,12 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
       {/* 3D Raycaster Canvas */}
       <div
         onClick={onShoot}
-        className="relative w-full aspect-[4/3] max-w-[560px] bg-black border border-[#333333] rounded-sm overflow-hidden cursor-crosshair group shadow-[0_0_20px_rgba(0,0,0,0.8)]"
+        className="relative w-full aspect-[16/10] bg-black border border-[#333333] rounded-sm overflow-hidden cursor-crosshair group shadow-[0_0_30px_rgba(0,0,0,0.9)]"
       >
         <canvas
           ref={canvasRef}
-          width={420}
-          height={280}
+          width={640}
+          height={400}
           className="w-full h-full block"
         />
 
