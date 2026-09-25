@@ -11,6 +11,7 @@ interface DoomScreenProps {
   isPaused: boolean;
   onTogglePlay: () => void;
   onShoot: () => void;
+  onTurnDelta?: (deltaRad: number) => void;
 }
 
 export const DoomScreen: React.FC<DoomScreenProps> = ({
@@ -21,10 +22,12 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
   hurtFlash,
   isPaused,
   onTogglePlay,
-  onShoot
+  onShoot,
+  onTurnDelta
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const faceCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number; moved: boolean } | null>(null);
 
   // Keep a stable ref to latest props for 60 FPS animation loop without effect churn
   const stateRef = useRef({
@@ -211,12 +214,58 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
     return () => cancelAnimationFrame(faceAnimId);
   }, []);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      touchStartRef.current = {
+        x: touch.clientX,
+        y: touch.clientY,
+        time: performance.now(),
+        moved: false
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStartRef.current.x;
+    const dy = touch.clientY - touchStartRef.current.y;
+
+    if (Math.hypot(dx, dy) > 5) {
+      touchStartRef.current.moved = true;
+      if (onTurnDelta) {
+        onTurnDelta(dx * 0.0075);
+      }
+      touchStartRef.current.x = touch.clientX;
+      touchStartRef.current.y = touch.clientY;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartRef.current) return;
+    const elapsed = performance.now() - touchStartRef.current.time;
+    if (!touchStartRef.current.moved && elapsed < 220) {
+      onShoot();
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate(35);
+        } catch (_) {}
+      }
+    }
+    touchStartRef.current = null;
+  };
+
   return (
-    <div className="relative flex flex-col items-center justify-center bg-[#000000] border border-[#262626] rounded-sm overflow-hidden p-2 font-mono select-none">
+    <div className="relative flex flex-col items-center justify-center bg-[#000000] border border-[#262626] rounded-sm overflow-hidden p-1.5 sm:p-2 font-mono select-none">
       {/* 3D Raycaster Canvas */}
       <div
         onClick={onShoot}
-        className="relative w-full aspect-[16/10] bg-black border border-[#333333] rounded-sm overflow-hidden cursor-crosshair group shadow-[0_0_30px_rgba(0,0,0,0.9)]"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => { touchStartRef.current = null; }}
+        className="relative w-full aspect-[16/10] bg-black border border-[#333333] rounded-sm overflow-hidden cursor-crosshair group shadow-[0_0_30px_rgba(0,0,0,0.9)] touch-none"
       >
         <canvas
           ref={canvasRef}
@@ -224,6 +273,12 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
           height={400}
           className="w-full h-full block"
         />
+
+        {/* Mobile Touch Hint Pill Overlay Top Left */}
+        <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#0A0A0ACC] border border-[#333333] text-[9px] text-[#AAAAAA] rounded-sm backdrop-blur-sm pointer-events-none flex items-center gap-1 z-20">
+          <span>👆</span>
+          <span>SWIPE TO LOOK • TAP TO SHOOT</span>
+        </div>
 
         {/* Quick Play/Pause Badge Overlay Top Right */}
         <button
@@ -247,12 +302,12 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
         </button>
 
         {/* In-Game Classic DOOM Status Bar with Animated Cyber-Fly Face */}
-        <div className="absolute bottom-0 inset-x-0 bg-[#0F0F12] border-t-2 border-[#333333] px-3 py-1.5 flex items-center justify-between text-[11px] font-bold z-10 select-none">
+        <div className="absolute bottom-0 inset-x-0 bg-[#0F0F12] border-t-2 border-[#333333] px-2 sm:px-3 py-1 sm:py-1.5 flex items-center justify-between text-[10px] sm:text-[11px] font-bold z-10 select-none">
           {/* Health counter */}
-          <div className="flex flex-col items-start min-w-[65px]">
-            <span className="text-[9px] text-[#777777] tracking-wider">HEALTH</span>
+          <div className="flex flex-col items-start min-w-[48px] sm:min-w-[65px]">
+            <span className="text-[8px] sm:text-[9px] text-[#777777] tracking-wider">HEALTH</span>
             <span
-              className={`text-base font-extrabold tracking-tight ${
+              className={`text-sm sm:text-base font-extrabold tracking-tight ${
                 player.health > 50
                   ? 'text-[#00FF88]'
                   : player.health > 25
@@ -265,10 +320,10 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
           </div>
 
           {/* Ammo counter */}
-          <div className="flex flex-col items-start min-w-[55px]">
-            <span className="text-[9px] text-[#777777] tracking-wider">AMMO</span>
+          <div className="flex flex-col items-start min-w-[40px] sm:min-w-[55px]">
+            <span className="text-[8px] sm:text-[9px] text-[#777777] tracking-wider">AMMO</span>
             <span
-              className={`text-base font-extrabold tracking-tight ${
+              className={`text-sm sm:text-base font-extrabold tracking-tight ${
                 player.ammo > 5 ? 'text-[#FFB300]' : 'text-[#FF1E56] animate-pulse'
               }`}
             >
@@ -278,24 +333,24 @@ export const DoomScreen: React.FC<DoomScreenProps> = ({
 
           {/* Center Animated Cyber-Fly Face */}
           <div className="flex flex-col items-center">
-            <div className="w-10 h-10 border border-[#444444] rounded-sm overflow-hidden bg-[#111111] shadow-[inset_0_0_6px_rgba(0,0,0,0.9)]">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 border border-[#444444] rounded-sm overflow-hidden bg-[#111111] shadow-[inset_0_0_6px_rgba(0,0,0,0.9)]">
               <canvas ref={faceCanvasRef} width={40} height={40} className="w-full h-full block" />
             </div>
-            <span className="text-[8px] text-[#666666] mt-0.5">FLY-GUY</span>
+            <span className="text-[7px] sm:text-[8px] text-[#666666] mt-0.5">FLY-GUY</span>
           </div>
 
           {/* Frags / Demons Killed */}
-          <div className="flex flex-col items-start min-w-[55px]">
-            <span className="text-[9px] text-[#777777] tracking-wider">FRAGS</span>
-            <span className="text-base font-extrabold text-[#00E5FF] tracking-tight">
+          <div className="flex flex-col items-start min-w-[40px] sm:min-w-[55px]">
+            <span className="text-[8px] sm:text-[9px] text-[#777777] tracking-wider">FRAGS</span>
+            <span className="text-sm sm:text-base font-extrabold text-[#00E5FF] tracking-tight">
               {player.frags}
             </span>
           </div>
 
           {/* Weapon / Armed Status */}
-          <div className="flex flex-col items-end min-w-[65px]">
-            <span className="text-[9px] text-[#777777] tracking-wider">ARMED</span>
-            <span className="text-xs text-white tracking-wider">12-GA</span>
+          <div className="flex flex-col items-end min-w-[48px] sm:min-w-[65px]">
+            <span className="text-[8px] sm:text-[9px] text-[#777777] tracking-wider">ARMED</span>
+            <span className="text-[10px] sm:text-xs text-white tracking-wider">12-GA</span>
           </div>
         </div>
       </div>

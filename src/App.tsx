@@ -6,6 +6,7 @@ import { SensoryRetina } from './components/SensoryRetina';
 import { BrainHUD } from './components/BrainHUD';
 import { NeuronDrawer } from './components/NeuronDrawer';
 import { NotesDrawer } from './components/NotesDrawer';
+import { MobileGamepad } from './components/MobileGamepad';
 
 import { DoomRaycaster } from './doom/raycaster';
 import { DemonManager } from './doom/demonAI';
@@ -254,6 +255,36 @@ export const App: React.FC = () => {
     }
   }, [moveEntityWithSliding]);
 
+  // Mobile Touch Controls Handlers
+  const touchButtonsRef = useRef<Record<string, boolean>>({});
+
+  const handleTouchButtonDown = useCallback((btn: keyof DoomButtons) => {
+    if (isAutoPlay) {
+      setIsAutoPlay(false);
+    }
+    keysDownRef.current[btn] = true;
+    touchButtonsRef.current[btn] = true;
+  }, [isAutoPlay]);
+
+  const handleTouchButtonUp = useCallback((btn: keyof DoomButtons) => {
+    keysDownRef.current[btn] = false;
+    touchButtonsRef.current[btn] = false;
+  }, []);
+
+  const handleTurnDelta = useCallback((deltaRad: number) => {
+    if (isAutoPlay) {
+      setIsAutoPlay(false);
+    }
+    const player = playerRef.current;
+    player.angleRad += deltaRad;
+    while (player.angleRad > Math.PI) player.angleRad -= Math.PI * 2;
+    while (player.angleRad < -Math.PI) player.angleRad += Math.PI * 2;
+    player.dirX = Math.cos(player.angleRad);
+    player.dirY = Math.sin(player.angleRad);
+    player.planeX = -player.dirY * 0.66;
+    player.planeY = player.dirX * 0.66;
+  }, [isAutoPlay]);
+
   // Main 60 FPS Game Loop
   useEffect(() => {
     let animId: number;
@@ -315,16 +346,17 @@ export const App: React.FC = () => {
         currentButtons = agentOut.buttons;
         setDecisionReason(agentOut.reason);
       } else {
-        // Manual player controls (WASD / Arrows / Space / Q & E)
+        // Manual player controls (WASD / Arrows / Space / Q & E / Mobile Touch)
         const keys = keysDownRef.current;
+        const touch = touchButtonsRef.current;
         currentButtons = {
-          turnLeft: !!(keys['arrowleft'] || keys['left']),
-          turnRight: !!(keys['arrowright'] || keys['right']),
-          moveForward: !!(keys['w'] || keys['arrowup']),
-          moveBackward: !!(keys['s'] || keys['arrowdown']),
-          strafeLeft: !!(keys['a'] || keys['q']),
-          strafeRight: !!(keys['d'] || keys['e']),
-          fire: !!(keys['fire'] || keys[' '])
+          turnLeft: !!(keys['arrowleft'] || keys['left'] || touch['turnLeft']),
+          turnRight: !!(keys['arrowright'] || keys['right'] || touch['turnRight']),
+          moveForward: !!(keys['w'] || keys['arrowup'] || touch['moveForward']),
+          moveBackward: !!(keys['s'] || keys['arrowdown'] || touch['moveBackward']),
+          strafeLeft: !!(keys['a'] || keys['q'] || touch['strafeLeft']),
+          strafeRight: !!(keys['d'] || keys['e'] || touch['strafeRight']),
+          fire: !!(keys['fire'] || keys[' '] || touch['fire'])
         };
         setDecisionReason('MANUAL PLAYER CONTROL');
       }
@@ -482,6 +514,20 @@ export const App: React.FC = () => {
             isPaused={isPaused}
             onTogglePlay={handleTogglePlay}
             onShoot={() => handleManualButton('fire')}
+            onTurnDelta={handleTurnDelta}
+          />
+        </div>
+
+        {/* MOBILE TOUCH GAMEPAD: Responsive phone touchscreen controller */}
+        <div className="w-full">
+          <MobileGamepad
+            buttons={buttonsState}
+            isAutoPlay={isAutoPlay}
+            isPaused={isPaused}
+            onToggleAutoPlay={handleToggleAutoPlay}
+            onTogglePlay={handleTogglePlay}
+            onTouchButtonDown={handleTouchButtonDown}
+            onTouchButtonUp={handleTouchButtonUp}
           />
         </div>
 
