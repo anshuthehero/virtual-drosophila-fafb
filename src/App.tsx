@@ -72,18 +72,74 @@ export const App: React.FC = () => {
   const frameCountRef = useRef<number>(0);
   const fpsTimerRef = useRef<number>(0);
 
-  // Safe collision tester with player radius cushion
-  const canMoveTo = (x: number, y: number, r = 0.22): boolean => {
-    for (const dx of [-r, r]) {
-      for (const dy of [-r, r]) {
-        const mx = Math.floor(x + dx);
-        const my = Math.floor(y + dy);
-        if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return false;
-        if (DOOM_GRID[my][mx] > 0) return false;
+  // Continuous collision with true wall sliding and push-out
+  const moveEntityWithSliding = useCallback(
+    (currentX: number, currentY: number, dx: number, dy: number, radius = 0.2): { x: number; y: number } => {
+      let newX = currentX;
+      let newY = currentY;
+
+      // 1. Move along X independently
+      if (dx !== 0) {
+        const targetX = currentX + dx;
+        const testX = dx > 0 ? targetX + radius : targetX - radius;
+        const checkCol = Math.floor(testX);
+
+        const minY = Math.floor(currentY - radius + 0.05);
+        const maxY = Math.floor(currentY + radius - 0.05);
+
+        let blockedX = false;
+        for (let r = minY; r <= maxY; r++) {
+          if (checkCol < 0 || checkCol >= DOOM_MAP_WIDTH || r < 0 || r >= DOOM_MAP_HEIGHT || DOOM_GRID[r][checkCol] > 0) {
+            blockedX = true;
+            break;
+          }
+        }
+
+        if (!blockedX) {
+          newX = targetX;
+        } else {
+          // Slide flush against the wall boundary
+          if (dx > 0) {
+            newX = checkCol - radius - 0.001;
+          } else {
+            newX = checkCol + 1 + radius + 0.001;
+          }
+        }
       }
-    }
-    return true;
-  };
+
+      // 2. Move along Y independently (sliding is preserved!)
+      if (dy !== 0) {
+        const targetY = currentY + dy;
+        const testY = dy > 0 ? targetY + radius : targetY - radius;
+        const checkRow = Math.floor(testY);
+
+        const minX = Math.floor(newX - radius + 0.05);
+        const maxX = Math.floor(newX + radius - 0.05);
+
+        let blockedY = false;
+        for (let c = minX; c <= maxX; c++) {
+          if (checkRow < 0 || checkRow >= DOOM_MAP_HEIGHT || c < 0 || c >= DOOM_MAP_WIDTH || DOOM_GRID[checkRow][c] > 0) {
+            blockedY = true;
+            break;
+          }
+        }
+
+        if (!blockedY) {
+          newY = targetY;
+        } else {
+          // Slide flush against the wall boundary
+          if (dy > 0) {
+            newY = checkRow - radius - 0.001;
+          } else {
+            newY = checkRow + 1 + radius + 0.001;
+          }
+        }
+      }
+
+      return { x: newX, y: newY };
+    },
+    []
+  );
 
   // Keyboard event listeners
   useEffect(() => {
@@ -160,31 +216,26 @@ export const App: React.FC = () => {
         setDemonsKilled((k) => k + 1);
       }
     } else if (btn === 'turnLeft') {
-      const rot = 0.35;
-      player.angleRad -= rot;
-      const oldDirX = player.dirX;
-      player.dirX = player.dirX * Math.cos(-rot) - player.dirY * Math.sin(-rot);
-      player.dirY = oldDirX * Math.sin(-rot) + player.dirY * Math.cos(-rot);
-      const oldPlaneX = player.planeX;
-      player.planeX = player.planeX * Math.cos(-rot) - player.planeY * Math.sin(-rot);
-      player.planeY = oldPlaneX * Math.sin(-rot) + player.planeY * Math.cos(-rot);
+      player.angleRad -= 0.35;
+      while (player.angleRad < -Math.PI) player.angleRad += Math.PI * 2;
+      player.dirX = Math.cos(player.angleRad);
+      player.dirY = Math.sin(player.angleRad);
+      player.planeX = -player.dirY * 0.66;
+      player.planeY = player.dirX * 0.66;
     } else if (btn === 'turnRight') {
-      const rot = 0.35;
-      player.angleRad += rot;
-      const oldDirX = player.dirX;
-      player.dirX = player.dirX * Math.cos(rot) - player.dirY * Math.sin(rot);
-      player.dirY = oldDirX * Math.sin(rot) + player.dirY * Math.cos(rot);
-      const oldPlaneX = player.planeX;
-      player.planeX = player.planeX * Math.cos(rot) - player.planeY * Math.sin(rot);
-      player.planeY = oldPlaneX * Math.sin(rot) + player.planeY * Math.cos(rot);
+      player.angleRad += 0.35;
+      while (player.angleRad > Math.PI) player.angleRad -= Math.PI * 2;
+      player.dirX = Math.cos(player.angleRad);
+      player.dirY = Math.sin(player.angleRad);
+      player.planeX = -player.dirY * 0.66;
+      player.planeY = player.dirX * 0.66;
     } else if (btn === 'moveForward') {
       const step = 0.5;
-      const nx = player.x + player.dirX * step;
-      const ny = player.y + player.dirY * step;
-      if (canMoveTo(nx, player.y)) player.x = nx;
-      if (canMoveTo(player.x, ny)) player.y = ny;
+      const res = moveEntityWithSliding(player.x, player.y, player.dirX * step, player.dirY * step, 0.2);
+      player.x = res.x;
+      player.y = res.y;
     }
-  }, []);
+  }, [moveEntityWithSliding]);
 
   // Main 60 FPS Game Loop
   useEffect(() => {
@@ -260,44 +311,44 @@ export const App: React.FC = () => {
       setButtonsState(currentButtons);
 
       // 2. Execute Rotation (Turning)
-      // Agent uses slower turn speed so it doesn't spin past demons
-      const rotSpeed = (isAutoPlay ? 1.8 : 3.2) * dt;
+      const rotSpeed = (isAutoPlay ? 2.2 : 3.2) * dt;
       if (currentButtons.turnLeft) {
         player.angleRad -= rotSpeed;
-        const oldDirX = player.dirX;
-        player.dirX = player.dirX * Math.cos(-rotSpeed) - player.dirY * Math.sin(-rotSpeed);
-        player.dirY = oldDirX * Math.sin(-rotSpeed) + player.dirY * Math.cos(-rotSpeed);
-
-        const oldPlaneX = player.planeX;
-        player.planeX = player.planeX * Math.cos(-rotSpeed) - player.planeY * Math.sin(-rotSpeed);
-        player.planeY = oldPlaneX * Math.sin(-rotSpeed) + player.planeY * Math.cos(-rotSpeed);
       }
       if (currentButtons.turnRight) {
         player.angleRad += rotSpeed;
-        const oldDirX = player.dirX;
-        player.dirX = player.dirX * Math.cos(rotSpeed) - player.dirY * Math.sin(rotSpeed);
-        player.dirY = oldDirX * Math.sin(rotSpeed) + player.dirY * Math.cos(rotSpeed);
-
-        const oldPlaneX = player.planeX;
-        player.planeX = player.planeX * Math.cos(rotSpeed) - player.planeY * Math.sin(rotSpeed);
-        player.planeY = oldPlaneX * Math.sin(rotSpeed) + player.planeY * Math.cos(rotSpeed);
       }
+      // Keep angleRad strictly normalized within (-π, π)
+      while (player.angleRad > Math.PI) player.angleRad -= Math.PI * 2;
+      while (player.angleRad < -Math.PI) player.angleRad += Math.PI * 2;
 
-      // 3. Execute Translation (Movement with collision radius)
+      // Exact mathematical direction and camera plane vectors (zero precision drift)
+      player.dirX = Math.cos(player.angleRad);
+      player.dirY = Math.sin(player.angleRad);
+      player.planeX = -player.dirY * 0.66;
+      player.planeY = player.dirX * 0.66;
+
+      // 3. Execute Translation (Movement with true wall sliding)
       const moveSpeed = 3.6 * dt;
+      let moveDx = 0;
+      let moveDy = 0;
+
       if (currentButtons.moveForward) {
-        const nextX = player.x + player.dirX * moveSpeed;
-        const nextY = player.y + player.dirY * moveSpeed;
-        if (canMoveTo(nextX, player.y)) player.x = nextX;
-        if (canMoveTo(player.x, nextY)) player.y = nextY;
+        moveDx += player.dirX * moveSpeed;
+        moveDy += player.dirY * moveSpeed;
         player.walkBob = (player.walkBob || 0) + dt * 10;
       }
       if (currentButtons.moveBackward) {
-        const nextX = player.x - player.dirX * (moveSpeed * 0.7);
-        const nextY = player.y - player.dirY * (moveSpeed * 0.7);
-        if (canMoveTo(nextX, player.y)) player.x = nextX;
-        if (canMoveTo(player.x, nextY)) player.y = nextY;
+        const backSpeed = moveSpeed * 0.7;
+        moveDx -= player.dirX * backSpeed;
+        moveDy -= player.dirY * backSpeed;
         player.walkBob = (player.walkBob || 0) + dt * 8;
+      }
+
+      if (moveDx !== 0 || moveDy !== 0) {
+        const moved = moveEntityWithSliding(player.x, player.y, moveDx, moveDy, 0.2);
+        player.x = moved.x;
+        player.y = moved.y;
       }
 
       // 4. Execute Fire (Shotgun Blast)
@@ -324,11 +375,25 @@ export const App: React.FC = () => {
         setTimeout(() => setHurtFlash(false), 120);
 
         if (player.health <= 0) {
-          // Respawn player
+          // Respawn player at safe hangar position
           player.health = 100;
           player.ammo = 30;
           player.x = 2.5;
           player.y = 2.5;
+          player.angleRad = 0;
+          player.dirX = 1;
+          player.dirY = 0;
+          player.planeX = 0;
+          player.planeY = 0.66;
+
+          // Push any demons clustering around spawn point back to prevent spawn camping
+          for (const d of demons.demons) {
+            if (d.state !== 'DEAD' && Math.hypot(d.x - 2.5, d.y - 2.5) < 3.5) {
+              d.x = 8.5;
+              d.y = 3.5;
+              d.state = 'IDLE';
+            }
+          }
         }
       }
 
