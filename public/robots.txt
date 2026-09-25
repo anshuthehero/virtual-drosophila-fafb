@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://virtual-drosophila-fafb.netlify.app/sitemap.xml

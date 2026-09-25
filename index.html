@@ -2,12 +2,94 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪰</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>VIRTUAL DROSOPHILA // FLYWIRE FAFB CONNECTOME</title>
+
+    <!-- Primary Meta Tags -->
+    <title>DOOM-FLY — Virtual Drosophila Connectome Plays 3D DOOM</title>
+    <meta name="title" content="DOOM-FLY — Virtual Drosophila Connectome Plays 3D DOOM" />
+    <meta name="description" content="An authentic biological simulation of the Drosophila melanogaster (fruit fly) brain connectome playing 3D DOOM in real time. Features living 16-wedge ring attractor compass dynamics, compound eye retina, mobile touch controls, and horror demon combat." />
+    <meta name="keywords" content="Drosophila connectome, FlyWire FAFB, DOOM fly, neural simulation, ring attractor, central complex, ellipsoid body, computational neuroscience, 3D raycaster, autonomous AI agent, fruit fly DOOM, webgl, retro game" />
+    <meta name="author" content="anshuthehero" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#050505" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DOOM-FLY" />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://virtual-drosophila-fafb.netlify.app/" />
+
+    <!-- Favicon & PWA Manifest -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪰</text></svg>" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Open Graph / Facebook / LinkedIn / Discord -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://virtual-drosophila-fafb.netlify.app/" />
+    <meta property="og:site_name" content="DOOM-FLY: Virtual Drosophila FAFB" />
+    <meta property="og:title" content="DOOM-FLY — Virtual Drosophila Connectome Plays 3D DOOM" />
+    <meta property="og:description" content="Watch or play as an authentic fruit fly brain connectome navigates 3D DOOM with living ring attractor neural dynamics, compound eye retina, and mobile touch controls." />
+    <meta property="og:image" content="https://virtual-drosophila-fafb.netlify.app/og-image.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://virtual-drosophila-fafb.netlify.app/" />
+    <meta name="twitter:title" content="DOOM-FLY — Fruit Fly Brain Connectome Plays DOOM" />
+    <meta name="twitter:description" content="Authentic Drosophila brain connectome (FlyWire FAFB v783) playing 3D DOOM in real time with dual-thumb mobile controls." />
+    <meta name="twitter:image" content="https://virtual-drosophila-fafb.netlify.app/og-image.svg" />
+    <meta name="twitter:image:alt" content="DOOM-FLY: Virtual Drosophila Connectome Plays 3D DOOM banner" />
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://virtual-drosophila-fafb.netlify.app/#app",
+          "name": "DOOM-FLY",
+          "alternateName": "Virtual Drosophila FAFB DOOM",
+          "url": "https://virtual-drosophila-fafb.netlify.app/",
+          "description": "Biological simulation of the Drosophila melanogaster (fruit fly) brain connectome playing 3D DOOM with live ring attractor neural dynamics.",
+          "applicationCategory": "GameApplication, Simulation",
+          "operatingSystem": "All (Web Browser, iOS, Android, Desktop)",
+          "browserRequirements": "Requires JavaScript and HTML5 Canvas",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          },
+          "citation": "FlyWire FAFB Whole-Brain Connectome (Nature 2024)",
+          "author": {
+            "@type": "Person",
+            "name": "anshuthehero",
+            "url": "https://github.com/anshuthehero"
+          }
+        },
+        {
+          "@type": "VideoGame",
+          "@id": "https://virtual-drosophila-fafb.netlify.app/#game",
+          "name": "DOOM-FLY",
+          "genre": ["First-Person Shooter", "Neuroscience Simulation", "Raycaster"],
+          "playMode": ["SinglePlayer", "AutoPlay"],
+          "gamePlatform": ["Web Browser", "Mobile Touchscreen", "PC"],
+          "publisher": {
+            "@type": "Organization",
+            "name": "Virtual Drosophila Connectome Project"
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="bg-[#050505] text-[#E5E5E5] font-mono selection:bg-[#00E5FF] selection:text-black min-h-screen overflow-x-hidden antialiased">
     <div id="root"></div>
