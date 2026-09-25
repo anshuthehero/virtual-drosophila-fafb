@@ -1,18 +1,15 @@
 import React, { useRef, useEffect } from 'react';
-import { DecisionVector, Direction } from '../game/types';
 
 interface SensoryRetinaProps {
-  decision: DecisionVector | null;
+  retinalRays: number[]; // 36-ommatidia scan from 3D raycaster
   fearLevel: number;
   rewardLevel: number;
-  isFrenzyActive: boolean;
 }
 
 export const SensoryRetina: React.FC<SensoryRetinaProps> = ({
-  decision,
+  retinalRays,
   fearLevel,
-  rewardLevel,
-  isFrenzyActive
+  rewardLevel
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -29,99 +26,85 @@ export const SensoryRetina: React.FC<SensoryRetinaProps> = ({
     ctx.fillStyle = '#050505';
     ctx.fillRect(0, 0, width, height);
 
-    // 1. Draw 4-Corridor Visual Raycast Spectrum
+    // 1. Draw 36-Ommatidia Retinal Scan from 3D DOOM Scene
     ctx.fillStyle = '#888888';
     ctx.font = '9px monospace';
-    ctx.fillText('COMPOUND EYE CORRIDOR SIGHTLINES (OPTIC FLOW)', 12, 16);
+    ctx.fillText('COMPOUND EYE 3D DEPTH SCAN (36-RAY FOV)', 12, 16);
 
-    const dirs: Direction[] = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
-    const colW = (width - 24) / 4;
+    const numRays = retinalRays.length || 36;
+    const colW = (width - 24) / numRays;
     const baseY = 55;
 
-    dirs.forEach((d, idx) => {
-      const opt = decision ? decision.options[d] : undefined;
-      const x = 12 + idx * colW;
+    for (let i = 0; i < numRays; i++) {
+      const depthVal = retinalRays[i] || 0.1;
+      const x = 12 + i * colW;
       const barH = 26;
 
-      if (!opt || !opt.isValid) {
-        // Blocked wall
-        ctx.fillStyle = '#1A1A1A';
-        ctx.fillRect(x, baseY - barH, colW - 2, barH);
-        ctx.fillStyle = '#444444';
-        ctx.font = '8px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText('WALL', x + colW / 2, baseY - 10);
+      // Color: if threat detected near center, highlight in crimson
+      const isCenter = Math.abs(i - 18) <= 4;
+      if (isCenter && fearLevel > 0.4) {
+        ctx.fillStyle = '#FF1E56';
       } else {
-        // Open corridor
-        const threatVal = opt.fearPenalty;
-        if (threatVal > 0.5) {
-          ctx.fillStyle = '#FF1E56'; // Threat detected in corridor!
-        } else if (opt.rewardValue > 1.0) {
-          ctx.fillStyle = '#00FF88'; // Food detected!
-        } else {
-          ctx.fillStyle = 'rgba(0, 229, 255, 0.4)';
-        }
-        ctx.fillRect(x, baseY - barH, colW - 2, barH);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '8px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(`${d}`, x + colW / 2, baseY - 10);
+        ctx.fillStyle = `rgba(0, 229, 255, ${Math.max(0.15, depthVal)})`;
       }
-    });
 
-    ctx.textAlign = 'left';
+      ctx.fillRect(x, baseY - barH, colW - 1, barH);
+    }
 
-    // 2. Antennal Chemosensory Odor Bar
-    const odorY = baseY + 28;
+    // Tick labels
+    ctx.fillStyle = '#444444';
+    ctx.font = '8px monospace';
+    ctx.fillText('-33° (L)', 12, baseY + 11);
+    ctx.fillText('0° (CROSSHAIR)', width * 0.42, baseY + 11);
+    ctx.fillText('+33° (R)', width - 42, baseY + 11);
+
+    // 2. Looming Threat (Lobula LPLC2) Sensor
+    const threatY = baseY + 28;
     ctx.fillStyle = '#888888';
     ctx.font = '9px monospace';
-    ctx.fillText('ANTENNAL CHEMOSENSORY (SUCROSE ODOR):', 12, odorY);
+    ctx.fillText('OPTIC LOOMING THREAT (LOBULA LPLC2):', 12, threatY);
 
     const barW = width - 24;
     ctx.fillStyle = '#1A1A1A';
-    ctx.fillRect(12, odorY + 5, barW, 8);
-
-    ctx.fillStyle = '#00FF88';
-    ctx.fillRect(12, odorY + 5, barW * Math.min(1.0, rewardLevel), 8);
-
-    ctx.fillStyle = '#E5E5E5';
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(`${(rewardLevel * 100).toFixed(0)}%`, width - 12, odorY);
-    ctx.textAlign = 'left';
-
-    // 3. Looming Threat (Lobula LPLC2) Sensor
-    const threatY = odorY + 28;
-    ctx.fillStyle = '#888888';
-    ctx.font = '9px monospace';
-    ctx.fillText('OPTIC LOOMING DETECTOR (LPLC2 PRE-ESCAPE):', 12, threatY);
-
-    ctx.fillStyle = '#1A1A1A';
     ctx.fillRect(12, threatY + 5, barW, 8);
 
-    ctx.fillStyle = isFrenzyActive ? '#00FF88' : fearLevel > 0.4 ? '#FF1E56' : '#FF8800';
+    ctx.fillStyle = fearLevel > 0.4 ? '#FF1E56' : '#FF8800';
     ctx.fillRect(12, threatY + 5, barW * Math.min(1.0, fearLevel), 8);
 
     ctx.fillStyle = '#E5E5E5';
     ctx.font = '9px monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(isFrenzyActive ? 'INVERTED (HUNT)' : `${(fearLevel * 100).toFixed(0)}%`, width - 12, threatY);
+    ctx.fillText(`${(fearLevel * 100).toFixed(0)}%`, width - 12, threatY);
     ctx.textAlign = 'left';
 
-    // 4. Sensor Flags
-    const flagsY = threatY + 24;
+    // 3. Reward / Supplies (PAM Dopamine)
+    const rewardY = threatY + 28;
+    ctx.fillStyle = '#888888';
+    ctx.font = '9px monospace';
+    ctx.fillText('SUPPLY DETECTION (HEALTH / AMMO VALENCE):', 12, rewardY);
+
+    ctx.fillStyle = '#1A1A1A';
+    ctx.fillRect(12, rewardY + 5, barW, 8);
+
+    ctx.fillStyle = '#00FF88';
+    ctx.fillRect(12, rewardY + 5, barW * Math.min(1.0, rewardLevel), 8);
+
+    ctx.fillStyle = '#E5E5E5';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${(rewardLevel * 100).toFixed(0)}%`, width - 12, rewardY);
+    ctx.textAlign = 'left';
+
+    // 4. Status Indicators
+    const flagsY = rewardY + 24;
     ctx.font = '9px monospace';
     ctx.fillStyle = fearLevel > 0.4 ? '#FF1E56' : '#333333';
-    ctx.fillText(`[ ${fearLevel > 0.4 ? '●' : '○'} LOOMING THREAT ]`, 12, flagsY);
+    ctx.fillText(`[ ${fearLevel > 0.4 ? '●' : '○'} DEMON IN SIGHT ]`, 12, flagsY);
 
-    ctx.fillStyle = rewardLevel > 0.3 ? '#00FF88' : '#333333';
-    ctx.fillText(`[ ${rewardLevel > 0.3 ? '●' : '○'} SUCROSE ODOR ]`, width * 0.44, flagsY);
+    ctx.fillStyle = rewardLevel > 0.2 ? '#00FF88' : '#333333';
+    ctx.fillText(`[ ${rewardLevel > 0.2 ? '●' : '○'} SUPPLIES NEARBY ]`, width * 0.46, flagsY);
 
-    ctx.fillStyle = isFrenzyActive ? '#FFB300' : '#333333';
-    ctx.fillText(`[ ${isFrenzyActive ? '●' : '○'} DOPAMINE FRENZY ]`, width * 0.74, flagsY);
-
-  }, [decision, fearLevel, rewardLevel, isFrenzyActive]);
+  }, [retinalRays, fearLevel, rewardLevel]);
 
   return (
     <div className="flex flex-col bg-[#000000] border border-[#262626] rounded-sm overflow-hidden h-full">
@@ -130,7 +113,7 @@ export const SensoryRetina: React.FC<SensoryRetinaProps> = ({
           01 / SENSORY INPUT
         </span>
         <span className="text-[9px] text-[#00E5FF] font-mono tracking-wider">
-          LIVE PIXELS (RETINA & ANTENNA)
+          LIVE PIXELS (RETINA & CORRIDORS)
         </span>
       </div>
 

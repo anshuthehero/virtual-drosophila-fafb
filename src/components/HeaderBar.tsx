@@ -1,12 +1,13 @@
 import React from 'react';
-import { GameTelemetry } from '../game/types';
+import { DoomPlayer } from '../doom/types';
 
 interface HeaderBarProps {
-  telemetry: GameTelemetry;
+  player: DoomPlayer;
   fps: number;
+  demonsKilled: number;
 }
 
-export const HeaderBar: React.FC<HeaderBarProps> = ({ telemetry, fps }) => {
+export const HeaderBar: React.FC<HeaderBarProps> = ({ player, fps, demonsKilled }) => {
   return (
     <header className="border-b border-[#262626] bg-[#000000] px-3 sm:px-6 py-2.5 font-mono">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -14,11 +15,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ telemetry, fps }) => {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00FF88] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00FF88]"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF1E56] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FF1E56]"></span>
             </span>
             <span className="font-bold tracking-wider text-xs sm:text-sm text-white">
-              NEURAL LABYRINTH // FAFB HARDCORE
+              DOOM-FLY // FAFB CONNECTOME
             </span>
           </div>
 
@@ -38,34 +39,24 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ telemetry, fps }) => {
           </span>
         </div>
 
-        {/* Live Score Telemetry */}
-        <div className="flex items-center gap-4 text-xs">
+        {/* Live DOOM Telemetry */}
+        <div className="flex items-center gap-4 text-xs font-bold">
           <div className="flex items-center gap-1.5">
-            <span className="text-[#666666]">STAGE:</span>
-            <span className="text-white font-bold">{telemetry.stage}</span>
+            <span className="text-[#888888]">HEALTH:</span>
+            <span className={player.health > 25 ? 'text-[#00FF88]' : 'text-[#FF1E56] animate-pulse'}>
+              {player.health}%
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[#666666]">SCORE:</span>
-            <span className="text-[#00FF88] font-bold">{telemetry.score}</span>
+            <span className="text-[#888888]">AMMO:</span>
+            <span className="text-[#FFB300]">{player.ammo}</span>
           </div>
 
           <div className="flex items-center gap-1.5">
-            <span className="text-[#666666]">HIGH:</span>
-            <span className="text-[#FFB300] font-bold">{telemetry.highScore}</span>
+            <span className="text-[#888888]">FRAGS:</span>
+            <span className="text-[#00E5FF]">{demonsKilled}</span>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[#666666]">PELLETS:</span>
-            <span className="text-[#00E5FF] font-bold">{telemetry.pelletsRemaining}</span>
-          </div>
-
-          {telemetry.frenzyActive && (
-            <div className="flex items-center gap-1 bg-[#082A14] border border-[#00FF88] px-2 py-0.5 rounded-sm text-[#00FF88] font-bold animate-pulse text-[10px]">
-              <span>FRENZY:</span>
-              <span>{telemetry.frenzyTimeRemaining.toFixed(1)}s</span>
-            </div>
-          )}
         </div>
       </div>
     </header>

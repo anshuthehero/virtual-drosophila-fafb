@@ -1,124 +1,117 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HeaderBar } from './components/HeaderBar';
-import { MazeCanvas } from './components/MazeCanvas';
-import { DecisionMatrixHUD } from './components/DecisionMatrixHUD';
-import { ControlDeck } from './components/ControlDeck';
+import { DoomScreen } from './components/DoomScreen';
+import { DoomControls } from './components/DoomControls';
 import { SensoryRetina } from './components/SensoryRetina';
 import { BrainHUD } from './components/BrainHUD';
 import { NeuronDrawer } from './components/NeuronDrawer';
 import { NotesDrawer } from './components/NotesDrawer';
 
-import { MazeMap, TILE_SIZE } from './game/mazeMap';
-import { FlyActor } from './game/flyActor';
-import { PredatorSystem } from './game/predatorAI';
-import { NeuralDecisionEngine } from './game/neuralDecisionEngine';
-import {
-  DecisionVector,
-  Direction,
-  GameDifficulty,
-  GamePlayMode,
-  GameState,
-  GameTelemetry
-} from './game/types';
+import { DoomRaycaster } from './doom/raycaster';
+import { DemonManager } from './doom/demonAI';
+import { FlyBrainDoomAgent } from './doom/flyBrainDoomAgent';
+import { DOOM_GRID, DOOM_MAP_HEIGHT, DOOM_MAP_WIDTH, getInitialDemons, getInitialItems } from './doom/doomMap';
+import { DemonEntity, DoomButtons, DoomPlayer, ItemEntity } from './doom/types';
 
 export const App: React.FC = () => {
-  // Game singletons
-  const mazeRef = useRef<MazeMap>(new MazeMap());
-  const flyRef = useRef<FlyActor>(new FlyActor());
-  const predatorRef = useRef<PredatorSystem>(new PredatorSystem(mazeRef.current));
-  const decisionRef = useRef<NeuralDecisionEngine>(new NeuralDecisionEngine());
+  // Game Singletons
+  const raycasterRef = useRef<DoomRaycaster>(new DoomRaycaster(420, 280));
+  const demonsRef = useRef<DemonManager>(new DemonManager(getInitialDemons()));
+  const itemsRef = useRef<ItemEntity[]>(getInitialItems());
+  const agentRef = useRef<FlyBrainDoomAgent>(new FlyBrainDoomAgent());
 
-  // Game state
-  const [gameState, setGameState] = useState<GameState>('PLAYING');
-  const [difficulty, setDifficulty] = useState<GameDifficulty>('HARDCORE');
-  const [playMode, setPlayMode] = useState<GamePlayMode>('AUTONOMOUS_RUN');
-  const [ebLesionPercent, setEbLesionPercent] = useState<number>(0);
-
-  const [decisionVector, setDecisionVector] = useState<DecisionVector | null>(null);
-  const [frenzyActive, setFrenzyActive] = useState<boolean>(false);
-  const [frenzyTimer, setFrenzyTimer] = useState<number>(0);
-
-  const [telemetry, setTelemetry] = useState<GameTelemetry>({
-    score: 0,
-    highScore: 1240,
-    stage: 1,
-    energyPercent: 100,
-    pelletsRemaining: mazeRef.current.totalPellets,
-    frenzyTimeRemaining: 0,
-    frenzyActive: false,
-    predatorsEaten: 0,
-    totalIntersectionsSolved: 0,
-    deaths: 0
+  // Player state
+  const playerRef = useRef<DoomPlayer>({
+    x: 2.5,
+    y: 2.5,
+    dirX: 1.0,
+    dirY: 0.0,
+    planeX: 0.0,
+    planeY: 0.66, // 66 degree FOV
+    angleRad: 0.0,
+    health: 100,
+    ammo: 30,
+    frags: 0,
+    isShooting: false,
+    shootAnimTimer: 0
   });
 
+  // UI state
+  const [playerState, setPlayerState] = useState<DoomPlayer>({ ...playerRef.current });
+  const [demonsState, setDemonsState] = useState<DemonEntity[]>([...demonsRef.current.demons]);
+  const [buttonsState, setButtonsState] = useState<DoomButtons>({
+    turnLeft: false,
+    turnRight: false,
+    moveForward: false,
+    moveBackward: false,
+    fire: false
+  });
+
+  const [decisionReason, setDecisionReason] = useState<string>('EXPLORING CORRIDORS');
+  const [isAutoPlay, setIsAutoPlay] = useState<boolean>(true);
+  const [ebLesionPercent, setEbLesionPercent] = useState<number>(0);
+  const [hurtFlash, setHurtFlash] = useState<boolean>(false);
   const [fps, setFps] = useState<number>(60);
+  const [demonsKilled, setDemonsKilled] = useState<number>(0);
+
   const [showEyes, setShowEyes] = useState<boolean>(true);
   const [showBrain, setShowBrain] = useState<boolean>(true);
 
-  // Manual player inputs (WASD / Arrows)
-  const manualDirRef = useRef<Direction>('NONE');
+  // Manual keyboard state
+  const keysDownRef = useRef<Record<string, boolean>>({});
 
   const lastTimeRef = useRef<number>(performance.now());
   const frameCountRef = useRef<number>(0);
   const fpsTimerRef = useRef<number>(0);
 
-  // Keyboard controls
+  // Keyboard event listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      let dir: Direction = 'NONE';
-      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') dir = 'UP';
-      else if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') dir = 'DOWN';
-      else if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') dir = 'LEFT';
-      else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') dir = 'RIGHT';
-
-      if (dir !== 'NONE') {
-        manualDirRef.current = dir;
+      keysDownRef.current[e.key.toLowerCase()] = true;
+      if (e.key === ' ' || e.key === 'Control') {
+        keysDownRef.current['fire'] = true;
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysDownRef.current[e.key.toLowerCase()] = false;
+      if (e.key === ' ' || e.key === 'Control') {
+        keysDownRef.current['fire'] = false;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
-  // Handle Mode & Difficulty
-  const handleTogglePlayMode = useCallback(() => {
-    setPlayMode((prev) => (prev === 'AUTONOMOUS_RUN' ? 'PLAYER_VS_FLY' : 'AUTONOMOUS_RUN'));
+  // Action handlers
+  const handleToggleAutoPlay = useCallback(() => {
+    setIsAutoPlay((prev) => !prev);
   }, []);
 
-  const handleChangeDifficulty = useCallback((d: GameDifficulty) => {
-    setDifficulty(d);
+  const handleSpawnDemon = useCallback(() => {
+    demonsRef.current.spawnDemonInFront(playerRef.current);
+    setDemonsState([...demonsRef.current.demons]);
   }, []);
 
   const handleChangeEBLesion = useCallback((percent: number) => {
     setEbLesionPercent(percent);
-    decisionRef.current.setEBLesion(percent);
+    agentRef.current.setEBLesion(percent);
   }, []);
 
-  const handleTogglePause = useCallback(() => {
-    setGameState((prev) => (prev === 'PLAYING' ? 'PAUSED' : 'PLAYING'));
-  }, []);
-
-  const handleRestart = useCallback(() => {
-    mazeRef.current.resetMaze();
-    flyRef.current.reset();
-    predatorRef.current.resetPositions();
-    setTelemetry((prev) => ({
-      ...prev,
-      score: 0,
-      energyPercent: 100,
-      pelletsRemaining: mazeRef.current.totalPellets,
-      frenzyActive: false,
-      frenzyTimeRemaining: 0
-    }));
-    setFrenzyActive(false);
-    setFrenzyTimer(0);
-    setGameState('PLAYING');
-  }, []);
-
-  const handleTriggerFrenzy = useCallback(() => {
-    setFrenzyActive(true);
-    setFrenzyTimer(8.0);
-    predatorRef.current.triggerFrenzy(8.0);
+  const handleManualButton = useCallback((btn: keyof DoomButtons) => {
+    if (btn === 'fire' && playerRef.current.ammo > 0) {
+      playerRef.current.isShooting = true;
+      playerRef.current.shootAnimTimer = 0.2;
+      playerRef.current.ammo = Math.max(0, playerRef.current.ammo - 1);
+      const res = demonsRef.current.shootAt(playerRef.current);
+      if (res.killed) {
+        setDemonsKilled((k) => k + 1);
+      }
+    }
   }, []);
 
   // Main 60 FPS Game Loop
@@ -138,235 +131,183 @@ export const App: React.FC = () => {
         fpsTimerRef.current = 0;
       }
 
-      if (gameState === 'PLAYING') {
-        const maze = mazeRef.current;
-        const fly = flyRef.current;
-        const predators = predatorRef.current;
-        const decisionEngine = decisionRef.current;
+      const player = playerRef.current;
+      const demons = demonsRef.current;
+      const items = itemsRef.current;
+      const agent = agentRef.current;
 
-        // 1. Update Frenzy Timer
-        let currentFrenzy = frenzyActive;
-        let currentFrenzyTime = frenzyTimer;
-        if (frenzyActive) {
-          currentFrenzyTime = Math.max(0, frenzyTimer - dt);
-          setFrenzyTimer(currentFrenzyTime);
-          if (currentFrenzyTime <= 0) {
-            currentFrenzy = false;
-            setFrenzyActive(false);
-          }
-        }
-
-        // 2. Step Fly Actor
-        const flyResult = fly.update(
-          dt,
-          maze,
-          decisionEngine,
-          predators.predators,
-          currentFrenzy,
-          now,
-          playMode === 'AUTONOMOUS_RUN' ? undefined : undefined
-        );
-
-        if (flyResult.decisionVector) {
-          setDecisionVector(flyResult.decisionVector);
-        }
-
-        // Handle pellet eating & scoring
-        if (flyResult.pelletEaten === 'PELLET') {
-          setTelemetry((prev) => {
-            const newScore = prev.score + 10;
-            return {
-              ...prev,
-              score: newScore,
-              highScore: Math.max(prev.highScore, newScore),
-              pelletsRemaining: Math.max(0, prev.pelletsRemaining - 1),
-              energyPercent: fly.energyPercent
-            };
-          });
-        } else if (flyResult.pelletEaten === 'SUPER_PELLET') {
-          // Trigger Dopamine Frenzy
-          currentFrenzy = true;
-          currentFrenzyTime = 8.0;
-          setFrenzyActive(true);
-          setFrenzyTimer(8.0);
-          predators.triggerFrenzy(8.0);
-
-          setTelemetry((prev) => {
-            const newScore = prev.score + 50;
-            return {
-              ...prev,
-              score: newScore,
-              highScore: Math.max(prev.highScore, newScore),
-              pelletsRemaining: Math.max(0, prev.pelletsRemaining - 1),
-              energyPercent: 100,
-              frenzyActive: true,
-              frenzyTimeRemaining: 8.0
-            };
-          });
-        } else {
-          setTelemetry((prev) => ({
-            ...prev,
-            energyPercent: fly.energyPercent,
-            frenzyActive: currentFrenzy,
-            frenzyTimeRemaining: currentFrenzyTime
-          }));
-        }
-
-        // 3. Step Predators
-        const playerDir = playMode === 'PLAYER_VS_FLY' ? manualDirRef.current : undefined;
-        predators.update(
-          dt,
-          fly.col,
-          fly.row,
-          fly.dir,
-          fly.trail,
-          difficulty,
-          playerDir
-        );
-
-        // 4. Check Collisions between Fly and Predators
-        for (const p of predators.predators) {
-          const distPx = Math.hypot(p.x - fly.x, p.y - fly.y);
-          if (distPx < TILE_SIZE * 0.75) {
-            if (currentFrenzy && p.mode === 'FLEE') {
-              // Fly eats predator!
-              p.mode = 'EATEN';
-              setTelemetry((prev) => ({
-                ...prev,
-                score: prev.score + 200,
-                predatorsEaten: prev.predatorsEaten + 1
-              }));
-            } else if (p.mode === 'CHASE') {
-              // Fly caught!
-              fly.isAlive = false;
-              setGameState('GAME_OVER');
-              setTelemetry((prev) => ({
-                ...prev,
-                deaths: prev.deaths + 1
-              }));
-            }
-          }
-        }
-
-        // Check Starvation
-        if (fly.energyPercent <= 0) {
-          fly.isAlive = false;
-          setGameState('GAME_OVER');
-        }
-
-        // Check Stage Clear (all pellets eaten)
-        let hasPellets = false;
-        for (let r = 0; r < maze.grid.length; r++) {
-          for (let c = 0; c < maze.grid[r].length; c++) {
-            if (maze.grid[r][c] === 'PELLET' || maze.grid[r][c] === 'SUPER_PELLET') {
-              hasPellets = true;
-              break;
-            }
-          }
-          if (hasPellets) break;
-        }
-
-        if (!hasPellets) {
-          setGameState('STAGE_CLEAR');
-          setTelemetry((prev) => ({
-            ...prev,
-            stage: prev.stage + 1,
-            score: prev.score + 1000
-          }));
-          setTimeout(() => {
-            maze.resetMaze();
-            fly.reset();
-            predators.resetPositions();
-            setGameState('PLAYING');
-          }, 2000);
+      // Update shoot animation timer
+      if (player.shootAnimTimer > 0) {
+        player.shootAnimTimer -= dt;
+        if (player.shootAnimTimer <= 0) {
+          player.isShooting = false;
         }
       }
+
+      // 1. Determine Button Commands
+      let currentButtons: DoomButtons = {
+        turnLeft: false,
+        turnRight: false,
+        moveForward: false,
+        moveBackward: false,
+        fire: false
+      };
+
+      if (isAutoPlay) {
+        // Connectome Brain Agent selects buttons
+        const agentOut = agent.step(dt, player, demons.demons, items);
+        currentButtons = agentOut.buttons;
+        setDecisionReason(agentOut.reason);
+      } else {
+        // Manual player controls (WASD / Arrows / Space)
+        const keys = keysDownRef.current;
+        currentButtons = {
+          turnLeft: !!(keys['a'] || keys['arrowleft']),
+          turnRight: !!(keys['d'] || keys['arrowright']),
+          moveForward: !!(keys['w'] || keys['arrowup']),
+          moveBackward: !!(keys['s'] || keys['arrowdown']),
+          fire: !!(keys['fire'] || keys[' '])
+        };
+        setDecisionReason('MANUAL PLAYER CONTROL');
+      }
+
+      setButtonsState(currentButtons);
+
+      // 2. Execute Rotation (Turning)
+      const rotSpeed = 3.2 * dt;
+      if (currentButtons.turnLeft) {
+        player.angleRad -= rotSpeed;
+        const oldDirX = player.dirX;
+        player.dirX = player.dirX * Math.cos(-rotSpeed) - player.dirY * Math.sin(-rotSpeed);
+        player.dirY = oldDirX * Math.sin(-rotSpeed) + player.dirY * Math.cos(-rotSpeed);
+
+        const oldPlaneX = player.planeX;
+        player.planeX = player.planeX * Math.cos(-rotSpeed) - player.planeY * Math.sin(-rotSpeed);
+        player.planeY = oldPlaneX * Math.sin(-rotSpeed) + player.planeY * Math.cos(-rotSpeed);
+      }
+      if (currentButtons.turnRight) {
+        player.angleRad += rotSpeed;
+        const oldDirX = player.dirX;
+        player.dirX = player.dirX * Math.cos(rotSpeed) - player.dirY * Math.sin(rotSpeed);
+        player.dirY = oldDirX * Math.sin(rotSpeed) + player.dirY * Math.cos(rotSpeed);
+
+        const oldPlaneX = player.planeX;
+        player.planeX = player.planeX * Math.cos(rotSpeed) - player.planeY * Math.sin(rotSpeed);
+        player.planeY = oldPlaneX * Math.sin(rotSpeed) + player.planeY * Math.cos(rotSpeed);
+      }
+
+      // 3. Execute Translation (Movement with collision)
+      const moveSpeed = 3.6 * dt;
+      if (currentButtons.moveForward) {
+        const nextX = player.x + player.dirX * moveSpeed;
+        const nextY = player.y + player.dirY * moveSpeed;
+        if (!isWall(nextX, player.y)) player.x = nextX;
+        if (!isWall(player.x, nextY)) player.y = nextY;
+      }
+      if (currentButtons.moveBackward) {
+        const nextX = player.x - player.dirX * (moveSpeed * 0.7);
+        const nextY = player.y - player.dirY * (moveSpeed * 0.7);
+        if (!isWall(nextX, player.y)) player.x = nextX;
+        if (!isWall(player.x, nextY)) player.y = nextY;
+      }
+
+      // 4. Execute Fire (Shotgun Blast)
+      if (currentButtons.fire && player.shootAnimTimer <= 0 && player.ammo > 0) {
+        player.isShooting = true;
+        player.shootAnimTimer = 0.22;
+        player.ammo = Math.max(0, player.ammo - 1);
+
+        const shotResult = demons.shootAt(player);
+        if (shotResult.killed) {
+          player.frags += 1;
+          setDemonsKilled((k) => k + 1);
+        }
+      }
+
+      // 5. Update Demons (Pathfinding & Attacks)
+      const demonOut = demons.update(dt, player);
+      if (demonOut.playerDamage > 0) {
+        player.health = Math.max(0, player.health - demonOut.playerDamage);
+        setHurtFlash(true);
+        setTimeout(() => setHurtFlash(false), 120);
+
+        if (player.health <= 0) {
+          // Respawn player
+          player.health = 100;
+          player.ammo = 30;
+          player.x = 2.5;
+          player.y = 2.5;
+        }
+      }
+
+      // 6. Check Item Pickups
+      for (const it of items) {
+        if (!it.pickedUp && Math.hypot(it.x - player.x, it.y - player.y) < 0.9) {
+          it.pickedUp = true;
+          if (it.type === 'HEALTH') {
+            player.health = Math.min(100, player.health + 35);
+          } else {
+            player.ammo = Math.min(50, player.ammo + 20);
+          }
+        }
+      }
+
+      // Push states to UI
+      setPlayerState({ ...player });
+      setDemonsState([...demons.demons]);
 
       animId = requestAnimationFrame(gameLoop);
     };
 
     animId = requestAnimationFrame(gameLoop);
     return () => cancelAnimationFrame(animId);
-  }, [gameState, difficulty, playMode, frenzyActive, frenzyTimer]);
+  }, [isAutoPlay]);
+
+  const isWall = (x: number, y: number): boolean => {
+    const mx = Math.floor(x);
+    const my = Math.floor(y);
+    if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return true;
+    return DOOM_GRID[my][mx] > 0;
+  };
+
+  const activeDemons = demonsState.filter((d) => d.state !== 'DEAD').length;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#050505] text-[#E5E5E5] font-mono selection:bg-[#00E5FF] selection:text-black">
+    <div className="flex flex-col min-h-screen bg-[#050505] text-[#E5E5E5] font-mono selection:bg-[#FF1E56] selection:text-white">
       {/* Top Header Bar */}
-      <HeaderBar telemetry={telemetry} fps={fps} />
+      <HeaderBar
+        player={playerState}
+        fps={fps}
+        demonsKilled={demonsKilled}
+      />
 
-      {/* Main Game Interface */}
+      {/* Main DOOM Console Area */}
       <main className="flex-1 p-2 sm:p-4 max-w-[1600px] w-full mx-auto space-y-3">
-        {/* UPPER SPLIT DECK: Labyrinth Canvas (Left) + Decision Matrix & Controls (Right) */}
+        {/* UPPER SPLIT DECK: 3D DOOM Screen (Left) + NEURON->BUTTON Controls (Right) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-          {/* 1. Primary Maze Canvas */}
+          {/* 3D Raycaster Screen */}
           <div className="lg:col-span-7 flex flex-col items-center">
-            <div className="w-full relative">
-              <MazeCanvas
-                maze={mazeRef.current}
-                fly={flyRef.current}
-                predatorSystem={predatorRef.current}
-                decisionVector={decisionVector}
-                isFrenzyActive={frenzyActive}
-                onManualInput={(dir) => {
-                  manualDirRef.current = dir;
-                }}
-              />
-
-              {/* Game Over / Stage Clear Overlay */}
-              {gameState === 'GAME_OVER' && (
-                <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 border border-[#FF1E56] rounded-sm z-20">
-                  <span className="text-[#FF1E56] text-xl font-bold tracking-widest animate-pulse mb-1">
-                    CONNECTOME TERMINATED
-                  </span>
-                  <p className="text-xs text-[#888888] mb-4 text-center max-w-sm">
-                    {flyRef.current.energyPercent <= 0
-                      ? 'Metabolic energy depleted (Starvation). The fly succumbed to exhaustion.'
-                      : 'Looming predator caught the fly. Giant Fiber escape was blocked.'}
-                  </p>
-                  <button
-                    onClick={handleRestart}
-                    className="px-4 py-2 bg-[#FF1E56] text-black font-bold uppercase tracking-wider text-xs rounded-sm hover:bg-[#FF3366] transition-colors"
-                  >
-                    PLAY AGAIN ↺
-                  </button>
-                </div>
-              )}
-
-              {gameState === 'STAGE_CLEAR' && (
-                <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center p-4 border border-[#00FF88] rounded-sm z-20">
-                  <span className="text-[#00FF88] text-xl font-bold tracking-widest animate-pulse mb-1">
-                    STAGE {telemetry.stage - 1} CLEARED!
-                  </span>
-                  <p className="text-xs text-[#888888] mb-2 text-center">
-                    All sucrose harvested. Next stage initializing...
-                  </p>
-                </div>
-              )}
-            </div>
+            <DoomScreen
+              raycaster={raycasterRef.current}
+              player={playerState}
+              demons={demonsState}
+              items={itemsRef.current}
+              hurtFlash={hurtFlash}
+            />
           </div>
 
-          {/* 2. Decision Matrix & Control Deck */}
-          <div className="lg:col-span-5 space-y-3">
-            <DecisionMatrixHUD
-              decision={decisionVector}
-              fearLevel={decisionRef.current.fearSpikeLevel}
-              rewardLevel={decisionRef.current.rewardSpikeLevel}
-              ebStability={decisionRef.current.ringAttractor.getState().stability}
-              energyPercent={telemetry.energyPercent}
-              isFrenzyActive={frenzyActive}
-            />
-
-            <ControlDeck
-              difficulty={difficulty}
-              onChangeDifficulty={handleChangeDifficulty}
-              playMode={playMode}
-              onTogglePlayMode={handleTogglePlayMode}
+          {/* NEURON -> BUTTON Control Deck */}
+          <div className="lg:col-span-5">
+            <DoomControls
+              buttons={buttonsState}
+              reason={decisionReason}
+              isAutoPlay={isAutoPlay}
+              onToggleAutoPlay={handleToggleAutoPlay}
+              onSpawnDemon={handleSpawnDemon}
               ebLesionPercent={ebLesionPercent}
               onChangeEBLesion={handleChangeEBLesion}
-              gameState={gameState}
-              onTogglePause={handleTogglePause}
-              onRestart={handleRestart}
-              onTriggerFrenzy={handleTriggerFrenzy}
+              onManualButton={handleManualButton}
+              demonsAlive={activeDemons}
             />
           </div>
         </div>
@@ -379,7 +320,7 @@ export const App: React.FC = () => {
                 LOOK INSIDE
               </span>
               <span className="text-[10px] text-[#666666] hidden sm:inline">
-                (CORRIDOR RETINA & FLYWIRE BRAIN ACTIVITY)
+                (COMPOUND EYE RAYCAST SCAN & FLYWIRE CONNECTOME FIRING)
               </span>
             </div>
 
@@ -421,19 +362,18 @@ export const App: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {showEyes && (
               <SensoryRetina
-                decision={decisionVector}
-                fearLevel={decisionRef.current.fearSpikeLevel}
-                rewardLevel={decisionRef.current.rewardSpikeLevel}
-                isFrenzyActive={frenzyActive}
+                retinalRays={raycasterRef.current.retinalRays}
+                fearLevel={agentRef.current.fearSpikeLevel}
+                rewardLevel={agentRef.current.rewardSpikeLevel}
               />
             )}
             {showBrain && (
               <BrainHUD
-                ringAttractorState={decisionRef.current.ringAttractor.getState()}
-                fearLevel={decisionRef.current.fearSpikeLevel}
-                rewardLevel={decisionRef.current.rewardSpikeLevel}
-                giantFiberActive={decisionRef.current.giantFiberEscapeActive}
-                isFrenzyActive={frenzyActive}
+                ringAttractorState={agentRef.current.ringAttractor.getState()}
+                fearLevel={agentRef.current.fearSpikeLevel}
+                rewardLevel={agentRef.current.rewardSpikeLevel}
+                giantFiberActive={agentRef.current.giantFiberActive}
+                isFrenzyActive={playerState.isShooting}
               />
             )}
           </div>
@@ -442,11 +382,11 @@ export const App: React.FC = () => {
         {/* BOTTOM COLLAPSIBLE TECHNICAL DRAWERS */}
         <div className="space-y-2">
           <NeuronDrawer
-            fearLevel={decisionRef.current.fearSpikeLevel}
-            rewardLevel={decisionRef.current.rewardSpikeLevel}
-            ebStability={decisionRef.current.ringAttractor.getState().stability}
-            giantFiberActive={decisionRef.current.giantFiberEscapeActive}
-            isFrenzyActive={frenzyActive}
+            fearLevel={agentRef.current.fearSpikeLevel}
+            rewardLevel={agentRef.current.rewardSpikeLevel}
+            ebStability={agentRef.current.ringAttractor.getState().stability}
+            giantFiberActive={agentRef.current.giantFiberActive}
+            isFrenzyActive={playerState.isShooting}
           />
           <NotesDrawer />
         </div>
@@ -455,14 +395,14 @@ export const App: React.FC = () => {
       {/* FOOTER */}
       <footer className="border-t border-[#262626] bg-[#000000] px-4 py-2 mt-6 flex flex-col sm:flex-row items-center justify-between text-[10px] text-[#666666]">
         <div className="flex items-center gap-2">
-          <span className="text-[#00FF88] font-bold">|||</span>
+          <span className="text-[#FF1E56] font-bold">|||</span>
           <span className="tracking-widest uppercase">
-            NEURAL LABYRINTH • FLYWIRE FAFB CONNECTOME v783
+            DOOM-FLY • FLYWIRE FAFB CONNECTOME v783
           </span>
         </div>
 
         <div className="mt-1 sm:mt-0 font-mono tracking-wide">
-          DECISION-MAKING ENGINE • HARDCORE ARCADE • 60 FPS
+          REAL-TIME NEURAL DECISION AGENT • 3D RAYCASTER • 60 FPS
         </div>
       </footer>
     </div>
