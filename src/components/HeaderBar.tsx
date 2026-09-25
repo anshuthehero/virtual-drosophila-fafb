@@ -5,18 +5,34 @@ interface HeaderBarProps {
   player: DoomPlayer;
   fps: number;
   demonsKilled: number;
+  isPaused: boolean;
+  onTogglePlay: () => void;
 }
 
-export const HeaderBar: React.FC<HeaderBarProps> = ({ player, fps, demonsKilled }) => {
+export const HeaderBar: React.FC<HeaderBarProps> = ({
+  player,
+  fps,
+  demonsKilled,
+  isPaused,
+  onTogglePlay
+}) => {
   return (
-    <header className="border-b border-[#262626] bg-[#000000] px-3 sm:px-6 py-2.5 font-mono">
+    <header className="border-b border-[#262626] bg-[#000000] px-3 sm:px-6 py-2.5 font-mono select-none">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         {/* Title and Dataset Link */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF1E56] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FF1E56]"></span>
+              <span
+                className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  isPaused ? 'bg-[#FFB300]' : 'animate-ping bg-[#FF1E56]'
+                }`}
+              ></span>
+              <span
+                className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  isPaused ? 'bg-[#FFB300]' : 'bg-[#FF1E56]'
+                }`}
+              ></span>
             </span>
             <span className="font-bold tracking-wider text-xs sm:text-sm text-white">
               DOOM-FLY // FAFB CONNECTOME
@@ -33,6 +49,18 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ player, fps, demonsKilled 
           >
             DATASET: FLYWIRE FAFB ↗
           </a>
+
+          {/* Quick Play/Stop Header Button */}
+          <button
+            onClick={onTogglePlay}
+            className={`text-[10px] px-2 py-0.5 rounded-sm border font-bold uppercase transition-all flex items-center gap-1 ${
+              isPaused
+                ? 'bg-[#052814] text-[#00FF88] border-[#00FF88]'
+                : 'bg-[#1F1708] text-[#FFB300] border-[#FFB300]'
+            }`}
+          >
+            <span>{isPaused ? '▶ PLAY' : '⏸ STOP'}</span>
+          </button>
 
           <span className="text-[10px] text-[#555555] hidden md:inline">
             {fps} FPS

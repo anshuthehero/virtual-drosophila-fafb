@@ -15,6 +15,10 @@ export interface DoomPlayer {
   frags: number;
   isShooting: boolean;
   shootAnimTimer: number;
+  walkBob?: number;
+  hitmarkerTimer?: number;
+  pickupFlash?: 'HEALTH' | 'AMMO' | null;
+  pickupFlashTimer?: number;
 }
 
 export type DemonState = 'IDLE' | 'CHASE' | 'ATTACK' | 'HURT' | 'DEAD';

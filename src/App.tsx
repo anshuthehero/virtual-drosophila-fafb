@@ -33,7 +33,11 @@ export const App: React.FC = () => {
     ammo: 30,
     frags: 0,
     isShooting: false,
-    shootAnimTimer: 0
+    shootAnimTimer: 0,
+    walkBob: 0,
+    hitmarkerTimer: 0,
+    pickupFlash: null,
+    pickupFlashTimer: 0
   });
 
   // UI state
@@ -49,6 +53,10 @@ export const App: React.FC = () => {
 
   const [decisionReason, setDecisionReason] = useState<string>('EXPLORING CORRIDORS');
   const [isAutoPlay, setIsAutoPlay] = useState<boolean>(true);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const isPausedRef = useRef<boolean>(false);
+  isPausedRef.current = isPaused;
+
   const [ebLesionPercent, setEbLesionPercent] = useState<number>(0);
   const [hurtFlash, setHurtFlash] = useState<boolean>(false);
   const [fps, setFps] = useState<number>(60);
@@ -64,17 +72,48 @@ export const App: React.FC = () => {
   const frameCountRef = useRef<number>(0);
   const fpsTimerRef = useRef<number>(0);
 
+  // Safe collision tester with player radius cushion
+  const canMoveTo = (x: number, y: number, r = 0.22): boolean => {
+    for (const dx of [-r, r]) {
+      for (const dy of [-r, r]) {
+        const mx = Math.floor(x + dx);
+        const my = Math.floor(y + dy);
+        if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return false;
+        if (DOOM_GRID[my][mx] > 0) return false;
+      }
+    }
+    return true;
+  };
+
   // Keyboard event listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      keysDownRef.current[e.key.toLowerCase()] = true;
-      if (e.key === ' ' || e.key === 'Control') {
+      const k = e.key.toLowerCase();
+
+      // 'P' key toggles Play / Pause
+      if (k === 'p') {
+        setIsPaused((prev) => !prev);
+        return;
+      }
+
+      // Prevent browser scrolling on space / arrow keys during gameplay
+      if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+        e.preventDefault();
+      }
+
+      keysDownRef.current[k] = true;
+      if (k === ' ' || k === 'control') {
         keysDownRef.current['fire'] = true;
       }
     };
+
     const handleKeyUp = (e: KeyboardEvent) => {
-      keysDownRef.current[e.key.toLowerCase()] = false;
-      if (e.key === ' ' || e.key === 'Control') {
+      const k = e.key.toLowerCase();
+      if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) {
+        e.preventDefault();
+      }
+      keysDownRef.current[k] = false;
+      if (k === ' ' || k === 'control') {
         keysDownRef.current['fire'] = false;
       }
     };
@@ -92,6 +131,10 @@ export const App: React.FC = () => {
     setIsAutoPlay((prev) => !prev);
   }, []);
 
+  const handleTogglePlay = useCallback(() => {
+    setIsPaused((prev) => !prev);
+  }, []);
+
   const handleSpawnDemon = useCallback(() => {
     demonsRef.current.spawnDemonInFront(playerRef.current);
     setDemonsState([...demonsRef.current.demons]);
@@ -103,14 +146,43 @@ export const App: React.FC = () => {
   }, []);
 
   const handleManualButton = useCallback((btn: keyof DoomButtons) => {
-    if (btn === 'fire' && playerRef.current.ammo > 0) {
-      playerRef.current.isShooting = true;
-      playerRef.current.shootAnimTimer = 0.2;
-      playerRef.current.ammo = Math.max(0, playerRef.current.ammo - 1);
-      const res = demonsRef.current.shootAt(playerRef.current);
+    const player = playerRef.current;
+    if (btn === 'fire' && player.ammo > 0 && player.shootAnimTimer <= 0) {
+      player.isShooting = true;
+      player.shootAnimTimer = 0.22;
+      player.ammo = Math.max(0, player.ammo - 1);
+      const res = demonsRef.current.shootAt(player);
+      if (res.hitDemon) {
+        player.hitmarkerTimer = 0.16;
+      }
       if (res.killed) {
+        player.frags += 1;
         setDemonsKilled((k) => k + 1);
       }
+    } else if (btn === 'turnLeft') {
+      const rot = 0.35;
+      player.angleRad -= rot;
+      const oldDirX = player.dirX;
+      player.dirX = player.dirX * Math.cos(-rot) - player.dirY * Math.sin(-rot);
+      player.dirY = oldDirX * Math.sin(-rot) + player.dirY * Math.cos(-rot);
+      const oldPlaneX = player.planeX;
+      player.planeX = player.planeX * Math.cos(-rot) - player.planeY * Math.sin(-rot);
+      player.planeY = oldPlaneX * Math.sin(-rot) + player.planeY * Math.cos(-rot);
+    } else if (btn === 'turnRight') {
+      const rot = 0.35;
+      player.angleRad += rot;
+      const oldDirX = player.dirX;
+      player.dirX = player.dirX * Math.cos(rot) - player.dirY * Math.sin(rot);
+      player.dirY = oldDirX * Math.sin(rot) + player.dirY * Math.cos(rot);
+      const oldPlaneX = player.planeX;
+      player.planeX = player.planeX * Math.cos(rot) - player.planeY * Math.sin(rot);
+      player.planeY = oldPlaneX * Math.sin(rot) + player.planeY * Math.cos(rot);
+    } else if (btn === 'moveForward') {
+      const step = 0.5;
+      const nx = player.x + player.dirX * step;
+      const ny = player.y + player.dirY * step;
+      if (canMoveTo(nx, player.y)) player.x = nx;
+      if (canMoveTo(player.x, ny)) player.y = ny;
     }
   }, []);
 
@@ -136,12 +208,26 @@ export const App: React.FC = () => {
       const items = itemsRef.current;
       const agent = agentRef.current;
 
-      // Update shoot animation timer
+      // If paused, keep pushing state to UI but don't advance physics simulation
+      if (isPausedRef.current) {
+        setPlayerState({ ...player });
+        setDemonsState([...demons.demons]);
+        animId = requestAnimationFrame(gameLoop);
+        return;
+      }
+
+      // Update timers
       if (player.shootAnimTimer > 0) {
         player.shootAnimTimer -= dt;
         if (player.shootAnimTimer <= 0) {
           player.isShooting = false;
         }
+      }
+      if (player.hitmarkerTimer && player.hitmarkerTimer > 0) {
+        player.hitmarkerTimer -= dt;
+      }
+      if (player.pickupFlashTimer && player.pickupFlashTimer > 0) {
+        player.pickupFlashTimer -= dt;
       }
 
       // 1. Determine Button Commands
@@ -196,19 +282,21 @@ export const App: React.FC = () => {
         player.planeY = oldPlaneX * Math.sin(rotSpeed) + player.planeY * Math.cos(rotSpeed);
       }
 
-      // 3. Execute Translation (Movement with collision)
+      // 3. Execute Translation (Movement with collision radius)
       const moveSpeed = 3.6 * dt;
       if (currentButtons.moveForward) {
         const nextX = player.x + player.dirX * moveSpeed;
         const nextY = player.y + player.dirY * moveSpeed;
-        if (!isWall(nextX, player.y)) player.x = nextX;
-        if (!isWall(player.x, nextY)) player.y = nextY;
+        if (canMoveTo(nextX, player.y)) player.x = nextX;
+        if (canMoveTo(player.x, nextY)) player.y = nextY;
+        player.walkBob = (player.walkBob || 0) + dt * 10;
       }
       if (currentButtons.moveBackward) {
         const nextX = player.x - player.dirX * (moveSpeed * 0.7);
         const nextY = player.y - player.dirY * (moveSpeed * 0.7);
-        if (!isWall(nextX, player.y)) player.x = nextX;
-        if (!isWall(player.x, nextY)) player.y = nextY;
+        if (canMoveTo(nextX, player.y)) player.x = nextX;
+        if (canMoveTo(player.x, nextY)) player.y = nextY;
+        player.walkBob = (player.walkBob || 0) + dt * 8;
       }
 
       // 4. Execute Fire (Shotgun Blast)
@@ -218,6 +306,9 @@ export const App: React.FC = () => {
         player.ammo = Math.max(0, player.ammo - 1);
 
         const shotResult = demons.shootAt(player);
+        if (shotResult.hitDemon) {
+          player.hitmarkerTimer = 0.16;
+        }
         if (shotResult.killed) {
           player.frags += 1;
           setDemonsKilled((k) => k + 1);
@@ -244,6 +335,8 @@ export const App: React.FC = () => {
       for (const it of items) {
         if (!it.pickedUp && Math.hypot(it.x - player.x, it.y - player.y) < 0.9) {
           it.pickedUp = true;
+          player.pickupFlash = it.type;
+          player.pickupFlashTimer = 0.25;
           if (it.type === 'HEALTH') {
             player.health = Math.min(100, player.health + 35);
           } else {
@@ -263,13 +356,6 @@ export const App: React.FC = () => {
     return () => cancelAnimationFrame(animId);
   }, [isAutoPlay]);
 
-  const isWall = (x: number, y: number): boolean => {
-    const mx = Math.floor(x);
-    const my = Math.floor(y);
-    if (mx < 0 || mx >= DOOM_MAP_WIDTH || my < 0 || my >= DOOM_MAP_HEIGHT) return true;
-    return DOOM_GRID[my][mx] > 0;
-  };
-
   const activeDemons = demonsState.filter((d) => d.state !== 'DEAD').length;
 
   return (
@@ -279,6 +365,8 @@ export const App: React.FC = () => {
         player={playerState}
         fps={fps}
         demonsKilled={demonsKilled}
+        isPaused={isPaused}
+        onTogglePlay={handleTogglePlay}
       />
 
       {/* Main DOOM Console Area */}
@@ -293,6 +381,9 @@ export const App: React.FC = () => {
               demons={demonsState}
               items={itemsRef.current}
               hurtFlash={hurtFlash}
+              isPaused={isPaused}
+              onTogglePlay={handleTogglePlay}
+              onShoot={() => handleManualButton('fire')}
             />
           </div>
 
@@ -303,6 +394,8 @@ export const App: React.FC = () => {
               reason={decisionReason}
               isAutoPlay={isAutoPlay}
               onToggleAutoPlay={handleToggleAutoPlay}
+              isPaused={isPaused}
+              onTogglePlay={handleTogglePlay}
               onSpawnDemon={handleSpawnDemon}
               ebLesionPercent={ebLesionPercent}
               onChangeEBLesion={handleChangeEBLesion}
