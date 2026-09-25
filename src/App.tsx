@@ -372,37 +372,35 @@ export const App: React.FC = () => {
       {/* Main DOOM Console Area */}
       <main className="flex-1 p-2 sm:p-4 max-w-[1600px] w-full mx-auto space-y-3">
         {/* UPPER SPLIT DECK: 3D DOOM Screen (Left) + NEURON->BUTTON Controls (Right) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-          {/* 3D Raycaster Screen — big and dominant */}
-          <div className="lg:col-span-8 flex flex-col items-center">
-            <DoomScreen
-              raycaster={raycasterRef.current}
-              player={playerState}
-              demons={demonsState}
-              items={itemsRef.current}
-              hurtFlash={hurtFlash}
-              isPaused={isPaused}
-              onTogglePlay={handleTogglePlay}
-              onShoot={() => handleManualButton('fire')}
-            />
-          </div>
+        {/* 3D DOOM Screen — full width, dominant */}
+        <div className="w-full">
+          <DoomScreen
+            raycaster={raycasterRef.current}
+            player={playerState}
+            demons={demonsState}
+            items={itemsRef.current}
+            hurtFlash={hurtFlash}
+            isPaused={isPaused}
+            onTogglePlay={handleTogglePlay}
+            onShoot={() => handleManualButton('fire')}
+          />
+        </div>
 
-          {/* NEURON -> BUTTON Control Deck */}
-          <div className="lg:col-span-4">
-            <DoomControls
-              buttons={buttonsState}
-              reason={decisionReason}
-              isAutoPlay={isAutoPlay}
-              onToggleAutoPlay={handleToggleAutoPlay}
-              isPaused={isPaused}
-              onTogglePlay={handleTogglePlay}
-              onSpawnDemon={handleSpawnDemon}
-              ebLesionPercent={ebLesionPercent}
-              onChangeEBLesion={handleChangeEBLesion}
-              onManualButton={handleManualButton}
-              demonsAlive={activeDemons}
-            />
-          </div>
+        {/* NEURON -> BUTTON Control Deck — compact strip below the game */}
+        <div className="w-full">
+          <DoomControls
+            buttons={buttonsState}
+            reason={decisionReason}
+            isAutoPlay={isAutoPlay}
+            onToggleAutoPlay={handleToggleAutoPlay}
+            isPaused={isPaused}
+            onTogglePlay={handleTogglePlay}
+            onSpawnDemon={handleSpawnDemon}
+            ebLesionPercent={ebLesionPercent}
+            onChangeEBLesion={handleChangeEBLesion}
+            onManualButton={handleManualButton}
+            demonsAlive={activeDemons}
+          />
         </div>
 
         {/* LOWER DECK: LOOK INSIDE (01 / Sensory Input + 02 / Neural Activity) */}
