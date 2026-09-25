@@ -128,12 +128,12 @@ export class NeuralDecisionEngine {
     // Determine descriptive reason
     if (isFrenzyActive) {
       primaryReason = 'DOPAMINE FRENZY: HUNTING PREDATORS';
+    } else if (isStarving && overallOdor > 0.1 && overallThreat < 0.75) {
+      primaryReason = 'STARVATION OVERDRIVE: SUCROSE PURSUIT';
+      this.giantFiberEscapeActive = false;
     } else if (overallThreat > 0.45) {
       primaryReason = 'GIANT FIBER SACCADE: FLEEING THREAT';
       this.giantFiberEscapeActive = true;
-    } else if (isStarving && overallOdor > 0.1) {
-      primaryReason = 'STARVATION OVERDRIVE: SUCROSE PURSUIT';
-      this.giantFiberEscapeActive = false;
     } else if (options[chosenDir].rewardValue > 1.2) {
       primaryReason = 'ALPN CHEMOTAXIS: FORAGING';
       this.giantFiberEscapeActive = false;

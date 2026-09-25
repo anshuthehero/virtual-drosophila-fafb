@@ -35,14 +35,14 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
       const width = canvas.width;
       const height = canvas.height;
 
-      // Clear dark background
-      ctx.fillStyle = '#050505';
+      // 1. Pure Pitch Black Background
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, width, height);
 
-      // 1. Draw Maze Tiles
       const now = Date.now();
-      const pulse = Math.sin(now * 0.005);
+      const pulse = Math.sin(now * 0.006);
 
+      // 2. Render Full Retro Black & White Maze Walls and Tiles
       for (let r = 0; r < MAZE_ROWS; r++) {
         for (let c = 0; c < MAZE_COLS; c++) {
           const tile = maze.getTile(c, r);
@@ -50,43 +50,70 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
           const py = r * TILE_SIZE;
 
           if (tile === 'WALL') {
-            // High-contrast clean neon walls
-            ctx.fillStyle = '#0A0A0A';
+            // Stark Monochrome Vector Walls: Black fill with crisp white perimeter
+            ctx.fillStyle = '#000000';
             ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            ctx.strokeStyle = '#222222';
+
+            ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 1;
             ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+
+            // Subtle inner inset line for retro vector arcade feel
+            ctx.strokeStyle = '#333333';
+            ctx.strokeRect(px + 3.5, py + 3.5, TILE_SIZE - 7, TILE_SIZE - 7);
           } else if (tile === 'PELLET') {
-            // Sucrose dot
-            ctx.fillStyle = '#00FF88';
-            ctx.beginPath();
-            ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, 2.2, 0, Math.PI * 2);
-            ctx.fill();
+            // Crisp White Sucrose Pellet
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(px + TILE_SIZE / 2 - 1, py + TILE_SIZE / 2 - 1, 2.5, 2.5);
           } else if (tile === 'SUPER_PELLET') {
-            // Pulsating Super Sucrose Gem
-            const rSize = 4.5 + pulse * 1.5;
-            ctx.fillStyle = '#FFB300';
-            ctx.shadowColor = '#FFB300';
-            ctx.shadowBlur = 8;
+            // Pulsating Retro White Diamond Gem
+            const sz = 4.5 + pulse * 1.5;
+            ctx.save();
+            ctx.translate(px + TILE_SIZE / 2, py + TILE_SIZE / 2);
+            ctx.rotate(now * 0.002);
+            ctx.fillStyle = '#FFFFFF';
             ctx.beginPath();
-            ctx.arc(px + TILE_SIZE / 2, py + TILE_SIZE / 2, rSize, 0, Math.PI * 2);
+            ctx.moveTo(0, -sz);
+            ctx.lineTo(sz, 0);
+            ctx.lineTo(0, sz);
+            ctx.lineTo(-sz, 0);
+            ctx.closePath();
             ctx.fill();
-            ctx.shadowBlur = 0;
-          } else if (tile === 'HEAT_TRAP') {
-            // Hazard thermal stripes
-            ctx.fillStyle = 'rgba(255, 30, 86, 0.15)';
-            ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-            ctx.strokeStyle = 'rgba(255, 30, 86, 0.4)';
+
+            // White glint lines
+            ctx.strokeStyle = '#FFFFFF';
             ctx.lineWidth = 1;
-            ctx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+            ctx.beginPath();
+            ctx.moveTo(-sz * 1.4, 0);
+            ctx.lineTo(sz * 1.4, 0);
+            ctx.moveTo(0, -sz * 1.4);
+            ctx.lineTo(0, sz * 1.4);
+            ctx.stroke();
+            ctx.restore();
+          } else if (tile === 'HEAT_TRAP') {
+            // Retro Black & White Diagonal Warning Hazard Stripes
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(px, py, TILE_SIZE, TILE_SIZE);
+            ctx.clip();
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1.5;
+            const stripeSpacing = 6;
+            for (let i = -TILE_SIZE; i < TILE_SIZE * 2; i += stripeSpacing) {
+              ctx.beginPath();
+              ctx.moveTo(px + i, py);
+              ctx.lineTo(px + i + TILE_SIZE, py + TILE_SIZE);
+              ctx.stroke();
+            }
+            ctx.restore();
           } else if (tile === 'GHOST_SPAWN') {
-            ctx.fillStyle = '#0D0D0D';
+            ctx.fillStyle = '#050505';
             ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           }
         }
       }
 
-      // 2. Draw Decision Radar Trails at current fly tile
+      // 3. Draw Decision Vector at Fly Position (Monochrome Radar Lines)
       if (decisionVector && decisionVector.options) {
         for (const d of ['UP', 'DOWN', 'LEFT', 'RIGHT'] as Direction[]) {
           const opt = decisionVector.options[d];
@@ -100,15 +127,15 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
             else if (d === 'RIGHT') targetX += dist;
 
             const isChosen = d === decisionVector.chosenDir;
-            ctx.strokeStyle = isChosen ? '#00FF88' : 'rgba(0, 229, 255, 0.35)';
+            ctx.strokeStyle = isChosen ? '#FFFFFF' : '#444444';
             ctx.lineWidth = isChosen ? 2 : 1;
             ctx.beginPath();
             ctx.moveTo(fly.x, fly.y);
             ctx.lineTo(targetX, targetY);
             ctx.stroke();
 
-            // Tip indicator
-            ctx.fillStyle = isChosen ? '#00FF88' : '#00E5FF';
+            // Arrow tip
+            ctx.fillStyle = isChosen ? '#FFFFFF' : '#666666';
             ctx.beginPath();
             ctx.arc(targetX, targetY, isChosen ? 2.5 : 1.5, 0, Math.PI * 2);
             ctx.fill();
@@ -116,16 +143,16 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
         }
       }
 
-      // 3. Draw Predators
+      // 4. Draw Predators in Full Retro Black & White
       for (const p of predatorSystem.predators) {
         if (p.mode === 'EATEN') {
-          // Floating eyes returning to base
+          // Floating white eyes returning to base
           ctx.fillStyle = '#FFFFFF';
           ctx.beginPath();
           ctx.arc(p.x - 3, p.y, 2.5, 0, Math.PI * 2);
           ctx.arc(p.x + 3, p.y, 2.5, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = '#00E5FF';
+          ctx.fillStyle = '#000000';
           ctx.beginPath();
           ctx.arc(p.x - 3, p.y, 1.2, 0, Math.PI * 2);
           ctx.arc(p.x + 3, p.y, 1.2, 0, Math.PI * 2);
@@ -133,66 +160,114 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
           continue;
         }
 
-        // Looming Hunter shadow cone
+        // Looming threat circle (Monochrome dashed warning ring)
         if (p.type === 'RED_HUNTER' && p.mode === 'CHASE') {
-          const shadowGrad = ctx.createRadialGradient(p.x, p.y, 5, p.x, p.y, p.loomingShadowRadius);
-          shadowGrad.addColorStop(0, 'rgba(255, 30, 86, 0.35)');
-          shadowGrad.addColorStop(0.7, 'rgba(255, 30, 86, 0.1)');
-          shadowGrad.addColorStop(1, 'rgba(255, 30, 86, 0)');
-          ctx.fillStyle = shadowGrad;
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.setLineDash([3, 3]);
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.loomingShadowRadius, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
 
-        // Ghost body
+        // Predator Vector Silhouette
         ctx.save();
         ctx.translate(p.x, p.y);
-        const ghostColor = p.mode === 'FLEE' ? (p.fleeTimer < 2 && (now % 200 < 100) ? '#FFFFFF' : '#00E5FF') : p.color;
 
-        ctx.fillStyle = ghostColor;
-        ctx.beginPath();
-        ctx.arc(0, -2, 7.5, Math.PI, 0, false);
-        ctx.lineTo(7.5, 6);
-        // Wavy skirt
-        ctx.lineTo(4, 3);
-        ctx.lineTo(0, 6);
-        ctx.lineTo(-4, 3);
-        ctx.lineTo(-7.5, 6);
-        ctx.closePath();
-        ctx.fill();
+        if (p.mode === 'FLEE') {
+          // In Frenzy / Flee mode: Hatched wireframe ghost that flashes
+          const flash = Math.floor(now / 150) % 2 === 0;
+          ctx.fillStyle = flash ? '#FFFFFF' : '#000000';
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(0, -2, 7.5, Math.PI, 0, false);
+          ctx.lineTo(7.5, 6);
+          ctx.lineTo(4, 3);
+          ctx.lineTo(0, 6);
+          ctx.lineTo(-4, 3);
+          ctx.lineTo(-7.5, 6);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
 
-        // Eyes
-        ctx.fillStyle = '#FFFFFF';
-        let lookDx = 0, lookDy = 0;
-        if (p.dir === 'LEFT') lookDx = -1.5;
-        else if (p.dir === 'RIGHT') lookDx = 1.5;
-        else if (p.dir === 'UP') lookDy = -1.5;
-        else if (p.dir === 'DOWN') lookDy = 1.5;
+          // X eyes
+          ctx.strokeStyle = flash ? '#000000' : '#FFFFFF';
+          ctx.lineWidth = 1;
+          ctx.strokeText('× ×', -6, 2);
+        } else {
+          // Solid White Vector Body
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.arc(0, -2, 7.5, Math.PI, 0, false);
+          ctx.lineTo(7.5, 6);
+          ctx.lineTo(4, 3);
+          ctx.lineTo(0, 6);
+          ctx.lineTo(-4, 3);
+          ctx.lineTo(-7.5, 6);
+          ctx.closePath();
+          ctx.fill();
 
-        ctx.beginPath();
-        ctx.arc(-2.8, -2.5, 2.2, 0, Math.PI * 2);
-        ctx.arc(2.8, -2.5, 2.2, 0, Math.PI * 2);
-        ctx.fill();
+          // Black eye cutouts
+          let lookDx = 0, lookDy = 0;
+          if (p.dir === 'LEFT') lookDx = -1.5;
+          else if (p.dir === 'RIGHT') lookDx = 1.5;
+          else if (p.dir === 'UP') lookDy = -1.5;
+          else if (p.dir === 'DOWN') lookDy = 1.5;
 
-        ctx.fillStyle = p.mode === 'FLEE' ? '#FF1E56' : '#050505';
-        ctx.beginPath();
-        ctx.arc(-2.8 + lookDx, -2.5 + lookDy, 1.2, 0, Math.PI * 2);
-        ctx.arc(2.8 + lookDx, -2.5 + lookDy, 1.2, 0, Math.PI * 2);
-        ctx.fill();
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(-2.8 + lookDx, -2.5 + lookDy, 1.8, 0, Math.PI * 2);
+          ctx.arc(2.8 + lookDx, -2.5 + lookDy, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Unique Retro Monochrome Insignia on Forehead
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 1;
+          if (p.type === 'RED_HUNTER') {
+            // Crosshair (+)
+            ctx.beginPath();
+            ctx.moveTo(0, -6);
+            ctx.lineTo(0, -2);
+            ctx.moveTo(-2, -4);
+            ctx.lineTo(2, -4);
+            ctx.stroke();
+          } else if (p.type === 'CYAN_AMBUSH') {
+            // Inverted triangle (▼)
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.moveTo(-2.5, -5.5);
+            ctx.lineTo(2.5, -5.5);
+            ctx.lineTo(0, -2.5);
+            ctx.fill();
+          } else if (p.type === 'PURPLE_STALKER') {
+            // Crown dots
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(-3, -5.5, 1.5, 1.5);
+            ctx.fillRect(-0.7, -6.5, 1.5, 1.5);
+            ctx.fillRect(1.5, -5.5, 1.5, 1.5);
+          } else if (p.type === 'ORANGE_PATROL') {
+            // Target dot
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.arc(0, -4, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
 
         ctx.restore();
       }
 
-      // 4. Draw Drosophila Connectome Avatar
+      // 5. Draw the Drosophila Avatar in Full Retro Monochrome
       if (fly.isAlive) {
         ctx.save();
         ctx.translate(fly.x, fly.y);
         ctx.rotate(fly.headingRad);
 
-        // Legs (6 legs in alternating tripod gait)
+        // Articulated legs (White vector lines)
         const isStance1 = Math.sin(fly.tripodPhase) > 0;
-        ctx.strokeStyle = '#9E8A78';
+        ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 1.2;
 
         const legOffsets = [
@@ -205,16 +280,16 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
         ];
 
         for (const l of legOffsets) {
-          const swing = l.stance ? 0 : 0.3;
+          const swing = l.stance ? 0 : 0.35;
           ctx.beginPath();
           ctx.moveTo(l.dx, l.dy * 0.5);
-          ctx.lineTo(l.dx + Math.cos(l.angle + swing) * 7, l.dy + Math.sin(l.angle + swing) * 7);
+          ctx.lineTo(l.dx + Math.cos(l.angle + swing) * 7.5, l.dy + Math.sin(l.angle + swing) * 7.5);
           ctx.stroke();
         }
 
-        // Wings
-        ctx.fillStyle = isFrenzyActive ? 'rgba(0, 255, 136, 0.45)' : 'rgba(200, 230, 255, 0.3)';
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        // Translucent White Wings with Edge Wireframe
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.ellipse(-6, -4, 8, 3.2, -0.2, 0, Math.PI * 2);
@@ -226,34 +301,55 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
         ctx.fill();
         ctx.stroke();
 
-        // Abdomen
-        ctx.fillStyle = '#8C5628';
+        // Abdomen (White outline, black interior with white tergite lines)
+        ctx.fillStyle = '#000000';
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
         ctx.ellipse(-4, 0, 6, 4, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
 
-        // Thorax
-        ctx.fillStyle = '#593815';
+        // Abdominal stripes
+        for (let s = -8; s <= -1; s += 2.5) {
+          ctx.beginPath();
+          ctx.moveTo(s, -3);
+          ctx.lineTo(s, 3);
+          ctx.stroke();
+        }
+
+        // Thorax (Solid White)
+        ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.ellipse(1, 0, 4.5, 3.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Head with Brick-Red Compound Eyes
-        ctx.fillStyle = '#3A1C08';
+        // Head (Black with White Eyes and White Antennae)
+        ctx.fillStyle = '#000000';
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.ellipse(5, 0, 3, 3, 0, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
 
-        // Red Ommatidia Eyes
-        ctx.fillStyle = '#FF2222';
+        // White Ommatidia Eyes
+        ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(5.5, -2.2, 1.8, 0, Math.PI * 2);
         ctx.arc(5.5, 2.2, 1.8, 0, Math.PI * 2);
         ctx.fill();
 
-        // Proboscis extends when eating
+        // Black pupils
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(5.8, -2.2, 0.8, 0, Math.PI * 2);
+        ctx.arc(5.8, 2.2, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Proboscis extends when eating (White vector line)
         if (fly.isEating) {
-          ctx.strokeStyle = '#00FF88';
+          ctx.strokeStyle = '#FFFFFF';
           ctx.lineWidth = 1.5;
           ctx.beginPath();
           ctx.moveTo(7, 0);
@@ -262,6 +358,12 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
         }
 
         ctx.restore();
+      }
+
+      // 6. Retro CRT Scanline Overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      for (let y = 0; y < height; y += 4) {
+        ctx.fillRect(0, y, width, 1.5);
       }
 
       animId = requestAnimationFrame(render);
@@ -277,7 +379,7 @@ export const MazeCanvas: React.FC<MazeCanvasProps> = ({
         ref={canvasRef}
         width={MAZE_COLS * TILE_SIZE}
         height={MAZE_ROWS * TILE_SIZE}
-        className="max-w-full h-auto aspect-square block border border-[#1A1A1A] rounded-sm"
+        className="max-w-full h-auto aspect-square block border border-[#333333] rounded-sm shadow-[0_0_15px_rgba(255,255,255,0.05)]"
       />
 
       {/* Mobile Virtual D-Pad (Touch / Clickable) */}

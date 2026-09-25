@@ -10,75 +10,79 @@ export class PredatorSystem {
     this.predators = this.initPredators();
   }
 
+  /**
+   * Spawn 4 predators in all 4 corners of the labyrinth
+   * so they converge on the fly from ALL directions!
+   */
   public initPredators(): PredatorEntity[] {
     return [
       {
         id: 'red_hunter',
         type: 'RED_HUNTER',
-        name: 'LOOMING HUNTER',
-        col: 11,
-        row: 10,
-        x: 11 * TILE_SIZE + TILE_SIZE / 2,
-        y: 10 * TILE_SIZE + TILE_SIZE / 2,
-        dir: 'UP',
-        speed: 2.3,
+        name: 'LOOMING HUNTER (NORTHEAST)',
+        col: 22,
+        row: 1,
+        x: 22 * TILE_SIZE + TILE_SIZE / 2,
+        y: 1 * TILE_SIZE + TILE_SIZE / 2,
+        dir: 'LEFT',
+        speed: 2.5,
         mode: 'CHASE',
         fleeTimer: 0,
-        color: '#FF1E56',
+        color: '#FFFFFF',
         targetCol: 12,
         targetRow: 17,
-        loomingShadowRadius: 36
+        loomingShadowRadius: 40
       },
       {
         id: 'cyan_ambush',
         type: 'CYAN_AMBUSH',
-        name: 'AMBUSH TRAPPER',
-        col: 12,
-        row: 10,
-        x: 12 * TILE_SIZE + TILE_SIZE / 2,
-        y: 10 * TILE_SIZE + TILE_SIZE / 2,
-        dir: 'UP',
-        speed: 2.2,
+        name: 'AMBUSH TRAPPER (NORTHWEST)',
+        col: 1,
+        row: 1,
+        x: 1 * TILE_SIZE + TILE_SIZE / 2,
+        y: 1 * TILE_SIZE + TILE_SIZE / 2,
+        dir: 'RIGHT',
+        speed: 2.4,
         mode: 'CHASE',
         fleeTimer: 0,
-        color: '#00E5FF',
-        targetCol: 1,
-        targetRow: 1,
-        loomingShadowRadius: 28
+        color: '#FFFFFF',
+        targetCol: 12,
+        targetRow: 17,
+        loomingShadowRadius: 32
       },
       {
         id: 'purple_stalker',
         type: 'PURPLE_STALKER',
-        name: 'SCENT STALKER',
-        col: 11,
-        row: 11,
-        x: 11 * TILE_SIZE + TILE_SIZE / 2,
-        y: 11 * TILE_SIZE + TILE_SIZE / 2,
+        name: 'SCENT STALKER (SOUTHWEST)',
+        col: 1,
+        row: 22,
+        x: 1 * TILE_SIZE + TILE_SIZE / 2,
+        y: 22 * TILE_SIZE + TILE_SIZE / 2,
         dir: 'UP',
-        speed: 2.1,
+        speed: 2.3,
         mode: 'CHASE',
         fleeTimer: 0,
-        color: '#B388FF',
-        targetCol: 22,
-        targetRow: 1,
-        loomingShadowRadius: 24
+        color: '#FFFFFF',
+        targetCol: 12,
+        targetRow: 17,
+        loomingShadowRadius: 28
       },
       {
         id: 'orange_patrol',
         type: 'ORANGE_PATROL',
-        name: 'TERRITORIAL BRUTE',
-        col: 12,
-        row: 11,
-        x: 12 * TILE_SIZE + TILE_SIZE / 2,
-        y: 11 * TILE_SIZE + TILE_SIZE / 2,
+        name: 'TERRITORIAL BRUTE (SOUTHEAST)',
+        col: 22,
+        row: 22,
+        x: 22 * TILE_SIZE + TILE_SIZE / 2,
+        y: 22 * TILE_SIZE + TILE_SIZE / 2,
         dir: 'UP',
-        speed: 1.9,
+        speed: 2.2,
         mode: 'CHASE',
         fleeTimer: 0,
-        color: '#FFB300',
-        targetCol: 1,
-        targetRow: 22,
-        loomingShadowRadius: 30
+        color: '#FFFFFF',
+        targetCol: 12,
+        targetRow: 17,
+        loomingShadowRadius: 34
       }
     ];
   }
@@ -105,7 +109,7 @@ export class PredatorSystem {
     difficulty: GameDifficulty,
     playerControlledDir?: Direction // In PLAYER_VS_FLY mode
   ) {
-    const speedMult = difficulty === 'NIGHTMARE' ? 1.3 : difficulty === 'HARDCORE' ? 1.1 : 0.9;
+    const speedMult = difficulty === 'NIGHTMARE' ? 1.35 : difficulty === 'HARDCORE' ? 1.15 : 0.95;
 
     for (const p of this.predators) {
       // Handle Flee timer
@@ -152,13 +156,13 @@ export class PredatorSystem {
 
     switch (p.type) {
       case 'RED_HUNTER':
-        // Direct chase to fly's current tile
+        // Direct chase to fly position from top-right
         p.targetCol = flyCol;
         p.targetRow = flyRow;
         break;
 
       case 'CYAN_AMBUSH':
-        // Project 4 tiles ahead of fly's heading
+        // Project 4 tiles ahead of fly's heading to cut off escape
         let aheadCol = flyCol;
         let aheadRow = flyRow;
         if (flyDir === 'UP') aheadRow -= 4;
@@ -170,7 +174,7 @@ export class PredatorSystem {
         break;
 
       case 'PURPLE_STALKER':
-        // Target past breadcrumb trail (odor scent stalker)
+        // Scent stalker: follows past odor trail
         if (flyTrail.length > 5) {
           const past = flyTrail[Math.max(0, flyTrail.length - 6)];
           p.targetCol = past.col;
@@ -182,14 +186,14 @@ export class PredatorSystem {
         break;
 
       case 'ORANGE_PATROL':
-        // If close (< 6 tiles), chase; otherwise patrol bottom-left room
+        // If close (< 7 tiles), chase; otherwise patrol bottom-right quadrant
         const dist = Math.abs(p.col - flyCol) + Math.abs(p.row - flyRow);
-        if (dist < 6) {
+        if (dist < 7) {
           p.targetCol = flyCol;
           p.targetRow = flyRow;
         } else {
-          p.targetCol = 1;
-          p.targetRow = 22;
+          p.targetCol = 20;
+          p.targetRow = 20;
         }
         break;
     }
@@ -197,10 +201,9 @@ export class PredatorSystem {
 
   private stepPredatorAI(p: PredatorEntity, dt: number, speedMult: number) {
     const tilePx = TILE_SIZE;
-    const currentSpeed = p.mode === 'FLEE' ? p.speed * 0.65 : p.speed * speedMult;
+    const currentSpeed = p.mode === 'FLEE' ? p.speed * 0.7 : p.speed * speedMult;
     const moveDist = currentSpeed * dt * 45;
 
-    // Center of current tile
     const centerTileX = p.col * tilePx + tilePx / 2;
     const centerTileY = p.row * tilePx + tilePx / 2;
 
@@ -212,13 +215,10 @@ export class PredatorSystem {
       p.x = centerTileX;
       p.y = centerTileY;
 
-      // Choose next direction at tile center
       const neighbors = this.maze.getValidNeighbors(p.col, p.row);
-      // Filter out reverse direction unless no other choice
       const oppositeDir = this.getOppositeDir(p.dir);
       const candidates = neighbors.filter(n => neighbors.length === 1 || n.dir !== oppositeDir);
 
-      // Pick neighbor that minimizes Euclidean distance to target
       let bestDir = p.dir;
       let minDist = 999999;
 
@@ -235,7 +235,6 @@ export class PredatorSystem {
       p.dir = bestDir;
     }
 
-    // Move along chosen direction
     this.moveEntity(p, moveDist);
   }
 
