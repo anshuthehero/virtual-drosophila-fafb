@@ -11,8 +11,8 @@ export class FlyBrainDoomAgent {
 
   private aimTolerance: number = 0.18; // radians (~10.3 degrees)
   private fireCooldown: number = 0;
-  private exploreBiasTimer: number = 0;
-  private exploreTurnBias: number = 0;
+  private cornerTurnDir: number = 0; // -1 = left, +1 = right, 0 = straight
+  private cornerTurnTimer: number = 0; // latched turn duration to prevent oscillation
 
   constructor() {
     this.ringAttractor = new RingAttractorModel();
@@ -74,12 +74,6 @@ export class FlyBrainDoomAgent {
     reason: string;
   } {
     if (this.fireCooldown > 0) this.fireCooldown -= dt;
-    this.exploreBiasTimer -= dt;
-    if (this.exploreBiasTimer <= 0) {
-      this.exploreBiasTimer = 2.0 + Math.random() * 2.0;
-      // Gentle occasional turn bias when exploring junctions
-      this.exploreTurnBias = (Math.random() - 0.5) * 0.8;
-    }
 
     const buttons: DoomButtons = {
       turnLeft: false,
@@ -206,6 +200,10 @@ export class FlyBrainDoomAgent {
 
     // Condition C: Drosophila Optic Flow Centering & Whole-Maze Corridor Exploration
     else {
+      if (this.cornerTurnTimer > 0) {
+        this.cornerTurnTimer -= dt;
+      }
+
       // Cast sensory distance rays: Center (0°), Left (+35°), Right (-35°)
       const angle = player.angleRad;
       const cosA = Math.cos(angle);
@@ -222,42 +220,55 @@ export class FlyBrainDoomAgent {
       const rightAngle = angle + 0.61;
       const distRight = this.castRay(player.x, player.y, Math.cos(rightAngle), Math.sin(rightAngle), 4.5);
 
-      // Check immediate obstacle directly in front
-      if (distCenter < 0.8) {
-        // Dead end or approaching T-junction -> steer towards side with more space
-        if (distLeft > distRight) {
+      // 1. Approaching a wall directly in front
+      if (distCenter < 1.0) {
+        // If not already in a committed turn, pick the more open direction and LATCH it for 0.4s
+        if (this.cornerTurnTimer <= 0) {
+          this.cornerTurnDir = distLeft >= distRight ? -1 : 1;
+          this.cornerTurnTimer = 0.4; // Commit to turning for 400ms to eliminate chatter
+        }
+
+        // Execute latched turn
+        if (this.cornerTurnDir < 0) {
           buttons.turnLeft = true;
         } else {
           buttons.turnRight = true;
         }
-        // If not right up against the wall, keep moving forward to corner smoothly
-        if (distCenter > 0.4) {
+
+        // Move forward if there's still a bit of clearance
+        if (distCenter > 0.35) {
           buttons.moveForward = true;
         }
         this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
-      } else if (distCenter < 2.0) {
-        // Corridor ahead is bending: initiate smooth proactive steering
-        buttons.moveForward = true;
-        if (distLeft > distRight + 0.4) {
+      }
+      // 2. Active turn still completing
+      else if (this.cornerTurnTimer > 0) {
+        if (this.cornerTurnDir < 0) {
           buttons.turnLeft = true;
-        } else if (distRight > distLeft + 0.4) {
+        } else {
           buttons.turnRight = true;
         }
-        this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
-      } else {
-        // Open corridor ahead -> Charge forward at full speed!
+        buttons.moveForward = true;
+        this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
+      }
+      // 3. Corridor ahead is clear and open!
+      else {
+        this.cornerTurnDir = 0;
         buttons.moveForward = true;
 
-        // Biological corridor centering (Lobula Plate optic flow balance):
-        // If getting too close to left wall, steer gently right; vice versa.
-        if (distLeft < 0.65) {
+        // Corridor centering with deadband (no chatter!)
+        // Only nudge if significantly closer to one wall than the other
+        if (distLeft < 0.6 && distRight > 0.8) {
           buttons.turnRight = true;
-        } else if (distRight < 0.65) {
+        } else if (distRight < 0.6 && distLeft > 0.8) {
           buttons.turnLeft = true;
-        } else if (Math.abs(this.exploreTurnBias) > 0.4) {
-          // Occasional exploratory bias at wide intersections
-          if (this.exploreTurnBias < 0) buttons.turnLeft = true;
-          else buttons.turnRight = true;
+        } else if (distCenter < 2.0) {
+          // Gentle curving into bending corridor
+          if (distLeft > distRight + 0.6) {
+            buttons.turnLeft = true;
+          } else if (distRight > distLeft + 0.6) {
+            buttons.turnRight = true;
+          }
         }
 
         this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
