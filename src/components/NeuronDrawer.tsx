@@ -7,6 +7,9 @@ interface NeuronDrawerProps {
   ebStability: number;
   giantFiberActive: boolean;
   isFrenzyActive: boolean;
+  dng01Forward?: number;
+  dng02Steering?: number;
+  dnp09Saccade?: number;
 }
 
 export const NeuronDrawer: React.FC<NeuronDrawerProps> = ({
@@ -14,22 +17,25 @@ export const NeuronDrawer: React.FC<NeuronDrawerProps> = ({
   rewardLevel,
   ebStability,
   giantFiberActive,
-  isFrenzyActive
+  isFrenzyActive,
+  dng01Forward,
+  dng02Steering,
+  dnp09Saccade
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const getNeuronActivity = (id: string) => {
     if (id.startsWith('E-PG')) return ebStability;
-    if (id.startsWith('P-EN1')) return 0.5;
+    if (id.startsWith('P-EN1')) return Math.max(0.2, Math.abs(dng02Steering ?? 0.5));
     if (id.startsWith('Delta7')) return ebStability;
     if (id.startsWith('LPLC2')) return fearLevel;
     if (id.startsWith('GF')) return giantFiberActive ? 1.0 : fearLevel > 0.4 ? 0.7 : 0.05;
-    if (id.startsWith('DNp09')) return giantFiberActive ? 1.0 : 0.1;
+    if (id.startsWith('DNp09')) return Math.max(giantFiberActive ? 1.0 : 0.05, Math.abs(dnp09Saccade ?? 0));
     if (id.startsWith('ALPN')) return rewardLevel;
     if (id.startsWith('PAM')) return isFrenzyActive ? 1.0 : rewardLevel;
     if (id.startsWith('SEZ')) return rewardLevel > 0.5 ? 1.0 : 0.0;
-    if (id.startsWith('DNg01')) return 0.75;
-    if (id.startsWith('DNg02')) return 0.4;
+    if (id.startsWith('DNg01')) return Math.abs(dng01Forward ?? 0.75);
+    if (id.startsWith('DNg02')) return Math.abs(dng02Steering ?? 0.4);
     return 0.15;
   };
 

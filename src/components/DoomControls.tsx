@@ -59,17 +59,18 @@ export const DoomControls: React.FC<DoomControlsProps> = ({
       {/* 3. Separator */}
       <div className="shrink-0 h-8 w-px bg-[#262626] hidden lg:block" />
 
-      {/* 4. NEURON BUTTONS: TURN / MOVE / FIRE */}
+      {/* 4. NEURON BUTTONS: TURN / MOVE / STRAFE / FIRE */}
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           onClick={() => onManualButton('turnLeft')}
-          className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-sm border transition-all min-w-[64px] ${
+          className={`flex flex-col items-center justify-center px-2.5 py-1.5 rounded-sm border transition-all min-w-[58px] ${
             buttons.turnLeft || buttons.turnRight
               ? 'bg-[#1F1708] border-[#FFB300] text-[#FFB300] shadow-[0_0_8px_rgba(255,179,0,0.4)]'
               : 'bg-[#0A0A0A] border-[#262626] text-[#666666] hover:border-[#444444]'
           }`}
+          title="Yaw Turning (P-EN / DNg02)"
         >
-          <div className="text-[11px] font-bold flex items-center gap-0.5">
+          <div className="text-[10px] font-bold flex items-center gap-0.5">
             <span>↤</span><span>TURN</span><span>↦</span>
           </div>
           <div className="text-[8px] font-mono font-bold mt-0.5">
@@ -79,27 +80,46 @@ export const DoomControls: React.FC<DoomControlsProps> = ({
 
         <button
           onClick={() => onManualButton('moveForward')}
-          className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-sm border transition-all min-w-[60px] ${
+          className={`flex flex-col items-center justify-center px-2.5 py-1.5 rounded-sm border transition-all min-w-[56px] ${
             buttons.moveForward || buttons.moveBackward
               ? 'bg-[#081F1A] border-[#00FF88] text-[#00FF88] shadow-[0_0_8px_rgba(0,255,136,0.4)]'
               : 'bg-[#0A0A0A] border-[#262626] text-[#666666] hover:border-[#444444]'
           }`}
+          title="Forward / Backward Thrust (DNg01)"
         >
-          <div className="text-[11px] font-bold">↥ MOVE</div>
+          <div className="text-[10px] font-bold">↥ MOVE</div>
           <div className="text-[8px] font-mono font-bold mt-0.5">
             {buttons.moveForward ? 'FWD' : buttons.moveBackward ? 'BACK' : '—'}
           </div>
         </button>
 
         <button
+          onClick={() => onManualButton('strafeLeft')}
+          className={`flex flex-col items-center justify-center px-2.5 py-1.5 rounded-sm border transition-all min-w-[62px] ${
+            buttons.strafeLeft || buttons.strafeRight
+              ? 'bg-[#140F29] border-[#B388FF] text-[#B388FF] shadow-[0_0_8px_rgba(179,136,255,0.4)]'
+              : 'bg-[#0A0A0A] border-[#262626] text-[#666666] hover:border-[#444444]'
+          }`}
+          title="Lateral Saccade / Strafe (DNp09)"
+        >
+          <div className="text-[10px] font-bold flex items-center gap-0.5">
+            <span>⇦</span><span>STRAFE</span><span>⇨</span>
+          </div>
+          <div className="text-[8px] font-mono font-bold mt-0.5">
+            {buttons.strafeLeft ? 'LEFT' : buttons.strafeRight ? 'RIGHT' : '—'}
+          </div>
+        </button>
+
+        <button
           onClick={() => onManualButton('fire')}
-          className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-sm border transition-all min-w-[56px] ${
+          className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-sm border transition-all min-w-[54px] ${
             buttons.fire
               ? 'bg-[#2A0812] border-[#FF1E56] text-[#FF1E56] animate-pulse shadow-[0_0_12px_rgba(255,30,86,0.7)]'
               : 'bg-[#0A0A0A] border-[#262626] text-[#666666] hover:border-[#FF1E56] hover:text-[#FF1E56]'
           }`}
+          title="Giant Fiber Spike / Weapon Blast (GF)"
         >
-          <div className="text-[11px] font-bold">🎯 FIRE</div>
+          <div className="text-[10px] font-bold">🎯 FIRE</div>
           <div className="text-[8px] font-mono font-bold mt-0.5">{buttons.fire ? 'BLAST!' : '—'}</div>
         </button>
       </div>

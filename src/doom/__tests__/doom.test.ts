@@ -85,6 +85,14 @@ describe('DOOM Trajectory & Autonomous Exploration', () => {
         moveDx -= player.dirX * moveSpeed * 0.7;
         moveDy -= player.dirY * moveSpeed * 0.7;
       }
+      if (out.buttons.strafeLeft) {
+        moveDx -= player.dirY * moveSpeed * 0.75;
+        moveDy += player.dirX * moveSpeed * 0.75;
+      }
+      if (out.buttons.strafeRight) {
+        moveDx += player.dirY * moveSpeed * 0.75;
+        moveDy -= player.dirX * moveSpeed * 0.75;
+      }
       if (moveDx !== 0 || moveDy !== 0) {
         const moved = moveEntityWithSliding(player.x, player.y, moveDx, moveDy, 0.2);
         player.x = moved.x;

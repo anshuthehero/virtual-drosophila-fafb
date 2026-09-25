@@ -7,6 +7,9 @@ export class FlyBrainDoomAgent {
   public fearSpikeLevel: number = 0;
   public rewardSpikeLevel: number = 0;
   public giantFiberActive: boolean = false;
+  public dng01ForwardLevel: number = 0;
+  public dng02SteeringLevel: number = 0;
+  public dnp09SaccadeLevel: number = 0;
   public lastDecisionReason: string = 'EXPLORING_CORRIDORS';
 
   private aimTolerance: number = 0.18; // radians (~10.3 degrees)
@@ -71,6 +74,9 @@ export class FlyBrainDoomAgent {
     fearLevel: number;
     rewardLevel: number;
     giantFiberSpike: boolean;
+    dng01: number;
+    dng02: number;
+    dnp09: number;
     reason: string;
   } {
     if (this.fireCooldown > 0) this.fireCooldown -= dt;
@@ -80,9 +86,14 @@ export class FlyBrainDoomAgent {
       turnRight: false,
       moveForward: false,
       moveBackward: false,
+      strafeLeft: false,
+      strafeRight: false,
       fire: false
     };
     let giantFiberSpike = false;
+    this.dng01ForwardLevel = 0;
+    this.dng02SteeringLevel = 0;
+    this.dnp09SaccadeLevel = 0;
 
     // ── 1. Lobula Plate Visual Threat Detection (Scan for Demons) ──────────
     let closestDemon: DemonEntity | null = null;
@@ -164,29 +175,50 @@ export class FlyBrainDoomAgent {
         }
 
         // Tactical movement during combat:
+        // Lateral clearances for circle-strafing and evasive maneuvers
+        const leftWallDist = this.castRay(player.x, player.y, -player.dirY, player.dirX, 2.5);
+        const rightWallDist = this.castRay(player.x, player.y, player.dirY, -player.dirX, 2.5);
+
         // Advance if demon is beyond shotgun sweet spot (> 2.0 units) AND path is clear
         if (minDemonDist > 2.0 && canSafelyAdvance) {
           buttons.moveForward = true;
-        } else if (minDemonDist < 1.2) {
+          this.dng01ForwardLevel = 0.8;
+        } else if (minDemonDist < 1.3) {
           // Backpedal only if space behind is clear
           const backDist = this.castRay(player.x, player.y, -player.dirX, -player.dirY, 1.5);
           if (backDist > 0.6) {
             buttons.moveBackward = true;
+            this.dng01ForwardLevel = -0.7;
+          }
+        }
+
+        // DNp09 Lateral Evasive Saccade & Tactical Circle-Strafing:
+        // Strafe around the demon to dodge melee/fireballs while keeping gun trained!
+        if (minDemonDist < 3.8) {
+          if (leftWallDist > 0.9 && leftWallDist >= rightWallDist) {
+            buttons.strafeLeft = true;
+            this.dnp09SaccadeLevel = -0.85;
+          } else if (rightWallDist > 0.9) {
+            buttons.strafeRight = true;
+            this.dnp09SaccadeLevel = 0.85;
           }
         }
       } else {
         // P-EN Steered tracking towards demon
         if (demonAngleDelta < 0) {
           buttons.turnLeft = true;
+          this.dng02SteeringLevel = -0.9;
           this.lastDecisionReason = 'P-EN STEERING: AIMING LEFT AT DEMON';
         } else {
           buttons.turnRight = true;
+          this.dng02SteeringLevel = 0.9;
           this.lastDecisionReason = 'P-EN STEERING: AIMING RIGHT AT DEMON';
         }
 
         // If roughly aligned and far away, advance while turning only if wall is not in front
         if (minDemonDist > 2.5 && Math.abs(demonAngleDelta) < 0.5 && canSafelyAdvance) {
           buttons.moveForward = true;
+          this.dng01ForwardLevel = 0.6;
         }
       }
     }
@@ -194,13 +226,18 @@ export class FlyBrainDoomAgent {
     // Condition B: Needs supplies & item in view
     else if (closestItem && (player.health < 60 || player.ammo < 10)) {
       if (Math.abs(itemAngleDelta) < 0.2) {
-        if (canSafelyAdvance) buttons.moveForward = true;
+        if (canSafelyAdvance) {
+          buttons.moveForward = true;
+          this.dng01ForwardLevel = 0.8;
+        }
         this.lastDecisionReason = 'PAM DOPAMINE: COLLECTING SUPPLIES';
       } else if (itemAngleDelta < 0) {
         buttons.turnLeft = true;
+        this.dng02SteeringLevel = -0.8;
         this.lastDecisionReason = 'PAM DOPAMINE: TURNING TO SUPPLIES';
       } else {
         buttons.turnRight = true;
+        this.dng02SteeringLevel = 0.8;
         this.lastDecisionReason = 'PAM DOPAMINE: TURNING TO SUPPLIES';
       }
     }
@@ -238,14 +275,17 @@ export class FlyBrainDoomAgent {
         // Execute latched turn
         if (this.cornerTurnDir < 0) {
           buttons.turnLeft = true;
+          this.dng02SteeringLevel = -1.0;
         } else {
           buttons.turnRight = true;
+          this.dng02SteeringLevel = 1.0;
         }
 
         // Only move forward if distance to wall is comfortably greater than 0.75
         // This ensures the fly NEVER bumps the wall!
         if (distCenter > 0.75) {
           buttons.moveForward = true;
+          this.dng01ForwardLevel = 0.4;
         }
         this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
       }
@@ -253,11 +293,14 @@ export class FlyBrainDoomAgent {
       else if (this.cornerTurnTimer > 0) {
         if (this.cornerTurnDir < 0) {
           buttons.turnLeft = true;
+          this.dng02SteeringLevel = -1.0;
         } else {
           buttons.turnRight = true;
+          this.dng02SteeringLevel = 1.0;
         }
         if (distCenter > 0.75) {
           buttons.moveForward = true;
+          this.dng01ForwardLevel = 0.4;
         }
         this.lastDecisionReason = 'EB COMPASS: CORNER NAVIGATION';
       }
@@ -265,19 +308,28 @@ export class FlyBrainDoomAgent {
       else {
         this.cornerTurnDir = 0;
         buttons.moveForward = true;
+        this.dng01ForwardLevel = 1.0;
 
         // Corridor centering with generous safety margin:
         // Steer away from walls early (0.75 cushion) to avoid brushing sides
         if (distLeft < 0.75 && distRight > 0.85) {
           buttons.turnRight = true;
+          buttons.strafeRight = true; // Side-slip away from wall
+          this.dng02SteeringLevel = 0.5;
+          this.dnp09SaccadeLevel = 0.5;
         } else if (distRight < 0.75 && distLeft > 0.85) {
           buttons.turnLeft = true;
+          buttons.strafeLeft = true; // Side-slip away from wall
+          this.dng02SteeringLevel = -0.5;
+          this.dnp09SaccadeLevel = -0.5;
         } else if (distCenter < 2.2) {
           // Anticipatory curve into bending corridor
           if (distLeft > distRight + 0.5) {
             buttons.turnLeft = true;
+            this.dng02SteeringLevel = -0.6;
           } else if (distRight > distLeft + 0.5) {
             buttons.turnRight = true;
+            this.dng02SteeringLevel = 0.6;
           }
         }
 
@@ -293,6 +345,9 @@ export class FlyBrainDoomAgent {
       fearLevel: this.fearSpikeLevel,
       rewardLevel: this.rewardSpikeLevel,
       giantFiberSpike,
+      dng01: this.dng01ForwardLevel,
+      dng02: this.dng02SteeringLevel,
+      dnp09: this.dnp09SaccadeLevel,
       reason: this.lastDecisionReason
     };
   }

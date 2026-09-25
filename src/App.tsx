@@ -48,6 +48,8 @@ export const App: React.FC = () => {
     turnRight: false,
     moveForward: false,
     moveBackward: false,
+    strafeLeft: false,
+    strafeRight: false,
     fire: false
   });
 
@@ -234,6 +236,21 @@ export const App: React.FC = () => {
       const res = moveEntityWithSliding(player.x, player.y, player.dirX * step, player.dirY * step, 0.2);
       player.x = res.x;
       player.y = res.y;
+    } else if (btn === 'moveBackward') {
+      const step = 0.4;
+      const res = moveEntityWithSliding(player.x, player.y, -player.dirX * step, -player.dirY * step, 0.2);
+      player.x = res.x;
+      player.y = res.y;
+    } else if (btn === 'strafeLeft') {
+      const step = 0.4;
+      const res = moveEntityWithSliding(player.x, player.y, -player.dirY * step, player.dirX * step, 0.2);
+      player.x = res.x;
+      player.y = res.y;
+    } else if (btn === 'strafeRight') {
+      const step = 0.4;
+      const res = moveEntityWithSliding(player.x, player.y, player.dirY * step, -player.dirX * step, 0.2);
+      player.x = res.x;
+      player.y = res.y;
     }
   }, [moveEntityWithSliding]);
 
@@ -287,6 +304,8 @@ export const App: React.FC = () => {
         turnRight: false,
         moveForward: false,
         moveBackward: false,
+        strafeLeft: false,
+        strafeRight: false,
         fire: false
       };
 
@@ -296,13 +315,15 @@ export const App: React.FC = () => {
         currentButtons = agentOut.buttons;
         setDecisionReason(agentOut.reason);
       } else {
-        // Manual player controls (WASD / Arrows / Space)
+        // Manual player controls (WASD / Arrows / Space / Q & E)
         const keys = keysDownRef.current;
         currentButtons = {
-          turnLeft: !!(keys['a'] || keys['arrowleft']),
-          turnRight: !!(keys['d'] || keys['arrowright']),
+          turnLeft: !!(keys['arrowleft'] || keys['left']),
+          turnRight: !!(keys['arrowright'] || keys['right']),
           moveForward: !!(keys['w'] || keys['arrowup']),
           moveBackward: !!(keys['s'] || keys['arrowdown']),
+          strafeLeft: !!(keys['a'] || keys['q']),
+          strafeRight: !!(keys['d'] || keys['e']),
           fire: !!(keys['fire'] || keys[' '])
         };
         setDecisionReason('MANUAL PLAYER CONTROL');
@@ -328,7 +349,7 @@ export const App: React.FC = () => {
       player.planeX = -player.dirY * 0.66;
       player.planeY = player.dirX * 0.66;
 
-      // 3. Execute Translation (Movement with true wall sliding)
+      // 3. Execute Translation (Forward, Backward, Strafe Left, Strafe Right with true wall sliding)
       const moveSpeed = 3.6 * dt;
       let moveDx = 0;
       let moveDy = 0;
@@ -342,6 +363,18 @@ export const App: React.FC = () => {
         const backSpeed = moveSpeed * 0.7;
         moveDx -= player.dirX * backSpeed;
         moveDy -= player.dirY * backSpeed;
+        player.walkBob = (player.walkBob || 0) + dt * 8;
+      }
+      if (currentButtons.strafeLeft) {
+        const strafeSpeed = moveSpeed * 0.75;
+        moveDx -= player.dirY * strafeSpeed;
+        moveDy += player.dirX * strafeSpeed;
+        player.walkBob = (player.walkBob || 0) + dt * 8;
+      }
+      if (currentButtons.strafeRight) {
+        const strafeSpeed = moveSpeed * 0.75;
+        moveDx += player.dirY * strafeSpeed;
+        moveDy -= player.dirX * strafeSpeed;
         player.walkBob = (player.walkBob || 0) + dt * 8;
       }
 
@@ -544,6 +577,9 @@ export const App: React.FC = () => {
             ebStability={agentRef.current.ringAttractor.getState().stability}
             giantFiberActive={agentRef.current.giantFiberActive}
             isFrenzyActive={playerState.isShooting}
+            dng01Forward={agentRef.current.dng01ForwardLevel}
+            dng02Steering={agentRef.current.dng02SteeringLevel}
+            dnp09Saccade={agentRef.current.dnp09SaccadeLevel}
           />
           <NotesDrawer />
         </div>

@@ -63,6 +63,8 @@ export interface DoomButtons {
   turnRight: boolean;
   moveForward: boolean;
   moveBackward: boolean;
+  strafeLeft: boolean;
+  strafeRight: boolean;
   fire: boolean;
 }
 
