@@ -189,9 +189,11 @@ export class FlyBrainDoomAgent {
     // Case C: Labyrinth Exploration & Patrol
     else {
       this.wanderTimer -= dt;
+
+      // Refresh wander direction every 1.5–3s (less frequent = less spinning)
       if (this.wanderTimer <= 0) {
-        this.wanderTurnBias = (Math.random() - 0.5) * 1.5;
-        this.wanderTimer = 0.8 + Math.random() * 1.5;
+        this.wanderTurnBias = (Math.random() - 0.5) * 2.0; // -1 to +1
+        this.wanderTimer = 1.5 + Math.random() * 1.5;
       }
 
       const ringState = this.ringAttractor.getState();
@@ -201,9 +203,16 @@ export class FlyBrainDoomAgent {
         buttons.moveForward = Math.random() > 0.4;
         this.lastDecisionReason = 'EB LESION: COMPASS INCOHERENCE (SPINNING)';
       } else {
+        // Forward-biased patrol: always moving, steer gently
+        // Only turn when bias is strong — this avoids constant spinning
         buttons.moveForward = true;
-        if (this.wanderTurnBias < -0.3) buttons.turnLeft = true;
-        else if (this.wanderTurnBias > 0.3) buttons.turnRight = true;
+
+        const steerStrength = Math.abs(this.wanderTurnBias);
+        if (steerStrength > 0.5) {
+          // Interleave turn + forward (not pure turn) so it actually travels
+          if (this.wanderTurnBias < 0) buttons.turnLeft = true;
+          else buttons.turnRight = true;
+        }
         this.lastDecisionReason = 'EB COMPASS: CORRIDOR PATROL';
       }
     }

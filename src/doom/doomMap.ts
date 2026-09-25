@@ -26,9 +26,10 @@ export const DOOM_GRID: number[][] = [
 export function getInitialDemons(): DemonEntity[] {
   return [
     {
+      // Demon in starting room, north end — fly sees it immediately
       id: 'demon_1',
-      x: 10.5,
-      y: 3.5,
+      x: 4.5,
+      y: 1.5,
       health: 60,
       maxHealth: 60,
       state: 'IDLE',
@@ -40,13 +41,14 @@ export function getInitialDemons(): DemonEntity[] {
       angleToPlayer: 0
     },
     {
+      // Demon in starting room, south end — flanks from below
       id: 'demon_2',
-      x: 13.5,
-      y: 8.5,
+      x: 1.5,
+      y: 5.5,
       health: 60,
       maxHealth: 60,
       state: 'IDLE',
-      speed: 1.9,
+      speed: 2.0,
       animFrame: 0,
       hurtTimer: 0,
       attackCooldown: 0,
@@ -54,9 +56,10 @@ export function getInitialDemons(): DemonEntity[] {
       angleToPlayer: 0
     },
     {
+      // Demon in far corridor — navigates around walls to reach player
       id: 'demon_3',
       x: 4.5,
-      y: 11.5,
+      y: 10.5,
       health: 80,
       maxHealth: 80,
       state: 'IDLE',
@@ -68,9 +71,10 @@ export function getInitialDemons(): DemonEntity[] {
       angleToPlayer: 0
     },
     {
+      // Demon in far right corridor — comes from the east
       id: 'demon_4',
-      x: 12.5,
-      y: 13.5,
+      x: 13.5,
+      y: 7.5,
       health: 100,
       maxHealth: 100,
       state: 'IDLE',

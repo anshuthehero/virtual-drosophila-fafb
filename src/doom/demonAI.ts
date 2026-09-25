@@ -40,23 +40,36 @@ export class DemonManager {
       // Line of sight check: raycast from demon to player
       const hasLOS = this.checkLineOfSight(demon.x, demon.y, player.x, player.y);
 
-      if (hasLOS && dist < 12) {
+      // Demons ALWAYS chase if within hearing range (no LOS needed — they can hear you)
+      // This lets them navigate around walls toward the player
+      if (dist < 16) {
         demon.state = 'CHASE';
 
-        // Attack if in close melee range (< 1.4 units)
+        // Attack if in close melee range (< 1.4 units) AND has LOS
         if (dist < 1.35 && demon.attackCooldown <= 0) {
           demon.state = 'ATTACK';
           demon.attackCooldown = 0.9;
           playerDamage += 16; // Claw strike
         } else {
-          // Approach player smoothly with wall sliding
+          // Navigate toward player with wall-sliding (no pathfinding needed — sliding works)
           const stepDist = demon.speed * dt;
-          const nextX = demon.x + (dx / dist) * stepDist;
-          const nextY = demon.y + (dy / dist) * stepDist;
+          const moveX = (dx / dist) * stepDist;
+          const moveY = (dy / dist) * stepDist;
 
-          // Wall collision with 0.2 cushion
-          if (!this.isWallWithRadius(nextX, demon.y, 0.2)) demon.x = nextX;
-          if (!this.isWallWithRadius(demon.x, nextY, 0.2)) demon.y = nextY;
+          // Wall slide: try X then Y independently so demons slide along walls
+          const canX = !this.isWallWithRadius(demon.x + moveX, demon.y, 0.22);
+          const canY = !this.isWallWithRadius(demon.x, demon.y + moveY, 0.22);
+
+          if (canX) demon.x += moveX;
+          if (canY) demon.y += moveY;
+
+          // If completely stuck (both blocked), try perpendicular slide to unstick
+          if (!canX && !canY) {
+            const perpX = -moveY;
+            const perpY = moveX;
+            if (!this.isWallWithRadius(demon.x + perpX, demon.y, 0.22)) demon.x += perpX;
+            else if (!this.isWallWithRadius(demon.x, demon.y + perpY, 0.22)) demon.y += perpY;
+          }
         }
       } else {
         demon.state = 'IDLE';
