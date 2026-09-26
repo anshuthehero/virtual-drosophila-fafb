@@ -623,6 +623,7 @@ export const App: React.FC = () => {
             ebStability={agentRef.current.ringAttractor.getState().stability}
             giantFiberActive={agentRef.current.giantFiberActive}
             isFrenzyActive={playerState.isShooting}
+            buttons={buttonsState}
             dng01Forward={agentRef.current.dng01ForwardLevel}
             dng02Steering={agentRef.current.dng02SteeringLevel}
             dnp09Saccade={agentRef.current.dnp09SaccadeLevel}

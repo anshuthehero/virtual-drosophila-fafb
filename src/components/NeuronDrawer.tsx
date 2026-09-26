@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FLYWIRE_FAFB_NEURONS } from '../simulation/connectomeData';
+import { DoomButtons } from '../doom/types';
 
 interface NeuronDrawerProps {
   fearLevel: number;
@@ -7,6 +8,7 @@ interface NeuronDrawerProps {
   ebStability: number;
   giantFiberActive: boolean;
   isFrenzyActive: boolean;
+  buttons?: DoomButtons;
   dng01Forward?: number;
   dng02Steering?: number;
   dnp09Saccade?: number;
@@ -18,6 +20,7 @@ export const NeuronDrawer: React.FC<NeuronDrawerProps> = ({
   ebStability,
   giantFiberActive,
   isFrenzyActive,
+  buttons,
   dng01Forward,
   dng02Steering,
   dnp09Saccade
@@ -26,16 +29,31 @@ export const NeuronDrawer: React.FC<NeuronDrawerProps> = ({
 
   const getNeuronActivity = (id: string) => {
     if (id.startsWith('E-PG')) return ebStability;
-    if (id.startsWith('P-EN1')) return Math.max(0.2, Math.abs(dng02Steering ?? 0.5));
+    if (id.startsWith('P-EN1')) {
+      const isTurning = buttons?.turnLeft || buttons?.turnRight;
+      return isTurning ? Math.max(0.65, Math.abs(dng02Steering ?? 0.65)) : 0.20;
+    }
     if (id.startsWith('Delta7')) return ebStability;
-    if (id.startsWith('LPLC2')) return fearLevel;
+    if (id.startsWith('ER2')) return 0.22;
+    if (id.startsWith('LPLC2')) return Math.max(0.02, fearLevel);
     if (id.startsWith('GF')) return giantFiberActive ? 1.0 : fearLevel > 0.4 ? 0.7 : 0.05;
-    if (id.startsWith('DNp09')) return Math.max(giantFiberActive ? 1.0 : 0.05, Math.abs(dnp09Saccade ?? 0));
-    if (id.startsWith('ALPN')) return rewardLevel;
-    if (id.startsWith('PAM')) return isFrenzyActive ? 1.0 : rewardLevel;
-    if (id.startsWith('SEZ')) return rewardLevel > 0.5 ? 1.0 : 0.0;
-    if (id.startsWith('DNg01')) return Math.abs(dng01Forward ?? 0.75);
-    if (id.startsWith('DNg02')) return Math.abs(dng02Steering ?? 0.4);
+    if (id.startsWith('DNp09')) {
+      const isStrafing = buttons?.strafeLeft || buttons?.strafeRight;
+      return giantFiberActive ? 1.0 : isStrafing ? 0.85 : Math.max(0.05, Math.abs(dnp09Saccade ?? 0));
+    }
+    if (id.startsWith('ALPN')) return Math.max(0.08, rewardLevel);
+    if (id.startsWith('PAM')) return isFrenzyActive ? 1.0 : Math.max(0.15, rewardLevel);
+    if (id.startsWith('SEZ')) return isFrenzyActive ? 1.0 : rewardLevel > 0.3 ? 0.90 : 0.05;
+    if (id.startsWith('DNg01')) {
+      if (buttons?.moveForward) return Math.max(0.85, Math.abs(dng01Forward ?? 0.85));
+      if (buttons?.moveBackward) return 0.55;
+      return Math.abs(dng01Forward ?? 0.05);
+    }
+    if (id.startsWith('DNg02')) {
+      if (buttons?.turnLeft || buttons?.turnRight) return Math.max(0.75, Math.abs(dng02Steering ?? 0.75));
+      return Math.abs(dng02Steering ?? 0.05);
+    }
+    if (id.startsWith('dFB')) return 0.18;
     return 0.15;
   };
 
